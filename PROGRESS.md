@@ -65,6 +65,26 @@
 - Migration system placeholder (`migrations.rs`)
 - Module structure for queries
 
+### Configuration Module
+✅ Configuration system implemented (`src/config/`):
+- **Config** struct with all settings
+- **GeneralConfig** - paths and default location
+- **ServiceConfig** - daemon settings
+- **GitConfig** - git author information
+- **CategoryConfig** - ECTS requirements per category
+- Config loading from `~/.config/mms/config.toml`
+- Config saving with pretty TOML formatting
+- Default values for all settings
+- Path expansion (tilde support)
+- Helper methods:
+  - `database_path()` - get database location
+  - `course_directory_path()` - build course directory paths
+  - `symlink_path()` - get expanded symlink path
+  - `university_base_path()` - get expanded university base path
+  - `init_default_config()` - create config with example categories
+  - `exists()` - check if config file exists
+- **Tests:** 4 tests passing (default config, serialization, path expansion, course directory)
+
 ## Next Steps
 
 ### 1. Database Schema & Migrations

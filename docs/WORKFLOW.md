@@ -131,3 +131,174 @@ mms import --csv old-grades.csv
 
 # View imported external courses
 mms course list --external
+```
+
+
+### User Experience Examples
+
+### Example 1: Course with Unselected Categories
+
+```bash
+$ mms progress
+
+Bachelor in Computer Science (TUM)
+═════════════════════════════════════════════════
+
+Core CS          ████████░░  45/60  (75%)   GPA: 1.6
+ML Specialization ███░░░░░░░  12/30  (40%)   GPA: 1.8
+Electives        ████░░░░░░  20/30  (67%)   GPA: 2.1
+
+⚠️  Warning: 2 courses need category assignment:
+  - Machine Learning (6 ECTS) - can count towards 3 areas
+  - Deep Learning (6 ECTS) - can count towards 2 areas
+
+Run: mms course apply-pending
+```
+
+### Example 2: Smart Recommendations
+
+```bash
+$ mms course apply ml
+
+Where should "Machine Learning" (6 ECTS) count?
+
+1. ✓ Core CS (45/60 ECTS) [recommended]
+     → Would reach 51/60 ECTS (85%)
+
+2.   ML Specialization (12/30 ECTS)
+     → Would reach 18/30 ECTS (60%)
+
+3.   Electives (20/30 ECTS)
+     → Would reach 26/30 ECTS (87%)
+
+Recommendation: Choose Core CS (you need 15 more ECTS there)
+
+Choice [1-3]:
+```
+
+### Example 3: Bulk Category Assignment
+
+```bash
+$ mms course apply-pending
+
+Found 3 courses needing category assignment:
+
+1. Machine Learning (6 ECTS)
+   Options: Core CS [rec], ML Specialization, Electives
+   → Apply to: Core CS
+
+2. Deep Learning (6 ECTS)
+   Options: ML Specialization [rec], Electives
+   → Apply to: ML Specialization
+
+3. Computer Vision (6 ECTS)
+   Options: Core CS, ML Specialization [rec], Electives
+   → Apply to: ML Specialization
+
+Confirm these assignments? [Y/n]: y
+
+✓ Machine Learning → Core CS
+✓ Deep Learning → ML Specialization
+✓ Computer Vision → ML Specialization
+
+Updated progress:
+Core CS:           51/60 ECTS (85%)
+ML Specialization: 24/30 ECTS (80%)
+```
+
+---
+
+## How It Works
+
+### Scenario 1: Course Creation
+
+```bash
+$ mms course create ml --name "Machine Learning"
+
+# System checks: Does this course have multiple possible categories?
+# Query:
+SELECT COUNT(*) FROM course_possible_categories
+WHERE course_id = ?;
+
+# If count = 0: Prompt user to add categories
+# If count = 1: Auto-assign to that category
+# If count > 1: Prompt user to choose
+```
+
+### Scenario 2: Adding Possible Categories
+
+```bash
+$ mms course add-category ml --degree bachelor-cs --area "Core CS"
+$ mms course add-category ml --degree bachelor-cs --area "ML Specialization"
+$ mms course add-category ml --degree bachelor-cs --area "Electives"
+
+# Result: 3 rows in course_possible_categories
+# No rows yet in course_degree_mappings (user hasn't chosen)
+```
+
+### Scenario 3: User Selects Where to Count the Course
+
+```bash
+$ mms course apply ml
+
+# Output:
+# Where should "Machine Learning" count?
+#
+# 1. Core CS (45/60 ECTS) [recommended]
+# 2. ML Specialization (12/30 ECTS)
+# 3. Electives (20/30 ECTS)
+#
+# Choice [1-3]: 2
+
+# Result: Insert into course_degree_mappings
+INSERT INTO course_degree_mappings (course_id, degree_id, area_id)
+VALUES (?, ?, ?);
+```
+
+### Scenario 4: Changing the Mapping
+
+```bash
+$ mms course reapply ml
+
+# Output:
+# "Machine Learning" currently counts towards: ML Specialization
+# Change to a different area?
+#
+# 1. Core CS (45/60 ECTS) [recommended]
+# 2. ML Specialization (12/30 ECTS) [current]
+# 3. Electives (20/30 ECTS)
+#
+# Choice [1-3, or 0 to cancel]: 1
+
+# Result: Update course_degree_mappings
+UPDATE course_degree_mappings
+SET area_id = ?
+WHERE course_id = ? AND degree_id = ?;
+```
+
+### Scenario 5: Importing Course with Multiple Categories
+
+When importing from a shared config or university catalogue:
+
+```toml
+# course-catalogue.toml
+[[courses]]
+code = "cs301"
+name = "Advanced Machine Learning"
+ects = 6
+
+[[courses.possible_categories]]
+degree = "Bachelor Computer Science"
+area = "Core CS"
+recommended = true
+
+[[courses.possible_categories]]
+degree = "Bachelor Computer Science"
+area = "ML Specialization"
+
+[[courses.possible_categories]]
+degree = "Bachelor Computer Science"
+area = "Electives"
+```
+
+---

@@ -1,10 +1,16 @@
 use crate::config::Config;
-use crate::db::connection;
-use crate::db::models::semester::{Semester, SemesterType};
+use crate::db::connection_seaorm; // Changed
+use crate::db::entities::semesters::Model as Semester; // Use SeaORM model
 use crate::db::queries;
-use crate::error::Result;
+use crate::error::{MmsError, Result}; // Import MmsError
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)] // Redefined locally or move to a shared types module
+pub enum SemesterType {
+    Bachelor,
+    Master,
+}
 
 #[derive(Debug, Clone)]
 pub struct SyncStatus {
@@ -92,12 +98,12 @@ fn parse_semester_folder(folder_name: &str) -> (Option<SemesterType>, Option<i32
 }
 
 /// Check sync status between database and filesystem
-pub fn check_status() -> Result<SyncStatus> {
+pub async fn check_status() -> Result<SyncStatus> { // Async
     let config = Config::load()?;
-    let conn = connection::get()?;
+    let conn = connection_seaorm::get_connection().await.map_err(MmsError::Database)?; // Async connection
 
     // Get all semesters from database
-    let db_semesters = queries::semester::list(&conn)?;
+    let db_semesters = queries::semester::list(&conn).await?; // Async query
 
     // Scan filesystem
     let disk_semesters = scan_disk_semesters(&config)?;
@@ -105,7 +111,7 @@ pub fn check_status() -> Result<SyncStatus> {
     // Build lookup maps
     let mut db_map: HashMap<String, Semester> = db_semesters
         .iter()
-        .map(|s| (s.folder_name(), s.clone()))
+        .map(|s| (s.directory_path.clone(), s.clone())) // Use directory_path as folder name
         .collect();
 
     let mut disk_set: HashSet<String> = disk_semesters
@@ -116,16 +122,20 @@ pub fn check_status() -> Result<SyncStatus> {
 
     // Find semesters in both
     let mut synced_semesters = Vec::new();
-    for (folder_name, semester) in &db_map {
-        if disk_set.contains(folder_name) {
-            synced_semesters.push(semester.clone());
-            disk_set.remove(folder_name);
+    // Iterating over keys of db_map is tricky while modifying it.
+    // Let's iterate over a clone of keys or just check disk_set against db_map keys.
+    
+    let db_folders: Vec<String> = db_map.keys().cloned().collect();
+    for folder_name in db_folders {
+        if disk_set.contains(&folder_name) {
+            if let Some(semester) = db_map.get(&folder_name) {
+                synced_semesters.push(semester.clone());
+            }
+            // We want to remove it from disk_set (to find disk-only ones)
+            // and remove from db_map (to find db-only ones).
+            disk_set.remove(&folder_name);
+            db_map.remove(&folder_name);
         }
-    }
-
-    // Remove synced semesters from db_map
-    for semester in &synced_semesters {
-        db_map.remove(&semester.folder_name());
     }
 
     // What's left in db_map is in DB only
@@ -145,16 +155,16 @@ pub fn check_status() -> Result<SyncStatus> {
 }
 
 /// Sync filesystem with database (create missing folders)
-pub fn sync_to_filesystem(dry_run: bool) -> Result<Vec<String>> {
+pub async fn sync_to_filesystem(dry_run: bool) -> Result<Vec<String>> { // Async
     let config = Config::load()?;
-    let status = check_status()?;
+    let status = check_status().await?; // Async await
     let mut actions = Vec::new();
 
     for semester in &status.semesters_in_db_only {
         let semester_path = config
             .general
             .university_base_path
-            .join(semester.folder_name());
+            .join(&semester.directory_path); // Use directory_path
         let action = format!("Create folder: {}", semester_path.display());
         actions.push(action);
 

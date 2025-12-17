@@ -4,5 +4,4 @@ pub mod service;
 pub mod symlink;
 pub mod sync;
 pub mod error;
-
-pub use rusqlite;
+pub mod paths;

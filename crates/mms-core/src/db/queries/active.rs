@@ -1,88 +1,127 @@
-use rusqlite::{Connection, params};
-use crate::db::models::active::Active;
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait,
+    Set,
+};
 use crate::error::Result;
+use crate::db::entities::{active_course, prelude::ActiveCourse as ActiveCourseEntity};
+use chrono::Utc;
+use sea_orm::IntoActiveModel;
 
-/// Get the current active state
-pub fn get(conn: &Connection) -> Result<Active> {
-    let mut stmt = conn.prepare(
-        "SELECT id, semester_id, course_id, lecture_id, activated_at
-         FROM active
-         WHERE id = 1"
-    )?;
-
-    let active = stmt.query_row([], |row| {
-        Ok(Active {
-            id: row.get(0)?,
-            semester_id: row.get(1)?,
-            course_id: row.get(2)?,
-            lecture_id: row.get(3)?,
-            activated_at: row.get(4)?,
-        })
-    })?;
-
+pub async fn get(db: &DatabaseConnection) -> Result<active_course::Model> {
+    let active = ActiveCourseEntity::find_by_id(1).one(db).await?
+        .ok_or_else(|| crate::error::MmsError::NotFound("ActiveCourse singleton not found.".to_string()))?;
     Ok(active)
 }
 
-/// Set the active semester
-pub fn set_active_semester(conn: &Connection, semester_id: i64) -> Result<()> {
-    let now = chrono::Local::now().naive_local();
+pub async fn set_active_semester(db: &DatabaseConnection, semester_id: i64) -> Result<()> {
+    let now = Utc::now(); // Changed to Utc::now()
 
-    conn.execute(
-        "UPDATE active
-         SET semester_id = ?1, activated_at = ?2
-         WHERE id = 1",
-        params![semester_id, now],
-    )?;
+    let mut active: active_course::ActiveModel = match ActiveCourseEntity::find_by_id(1).one(db).await? {
+        Some(model) => model.into_active_model(),
+        None => active_course::ActiveModel { id: ActiveValue::Set(1), ..Default::default() },
+    };
 
-    Ok(())
-}
-
-/// Set the active course (and its semester)
-pub fn set_active_course(conn: &Connection, course_id: i64, semester_id: i64) -> Result<()> {
-    let now = chrono::Local::now().naive_local();
-
-    conn.execute(
-        "UPDATE active
-         SET semester_id = ?1, course_id = ?2, lecture_id = NULL, activated_at = ?3
-         WHERE id = 1",
-        params![semester_id, course_id, now],
-    )?;
+    active.semester_id = Set(Some(semester_id));
+    active.activated_at = Set(Some(now)); // Clone not needed for Copy/Utc
+    active.updated_at = Set(now);
+    
+    // Save (insert or update)
+    if active.id.is_set() && active.id.as_ref() == &1 && ActiveCourseEntity::find_by_id(1).one(db).await?.is_some() {
+         active.update(db).await?;
+    } else {
+         active.insert(db).await?;
+    }
 
     Ok(())
 }
 
-/// Clear the active course (but keep semester active)
-pub fn clear_active_course(conn: &Connection) -> Result<()> {
-    conn.execute(
-        "UPDATE active
-         SET course_id = NULL, lecture_id = NULL
-         WHERE id = 1",
-        [],
-    )?;
+pub async fn set_active_course(db: &DatabaseConnection, course_id: i64, semester_id: i64) -> Result<()> {
+    let now = Utc::now();
+
+    let mut active: active_course::ActiveModel = match ActiveCourseEntity::find_by_id(1).one(db).await? {
+        Some(model) => model.into_active_model(),
+        None => active_course::ActiveModel { id: ActiveValue::Set(1), ..Default::default() },
+    };
+
+    active.semester_id = Set(Some(semester_id));
+    active.course_id = Set(Some(course_id));
+    active.lecture_id = Set(None);
+    active.activated_at = Set(Some(now));
+    active.updated_at = Set(now);
+
+    let exists = ActiveCourseEntity::find_by_id(1).one(db).await?.is_some();
+    if exists {
+        active.update(db).await?;
+    } else {
+        active.insert(db).await?;
+    }
 
     Ok(())
 }
 
-/// Clear everything
-pub fn clear_all(conn: &Connection) -> Result<()> {
-    conn.execute(
-        "UPDATE active
-         SET semester_id = NULL, course_id = NULL, lecture_id = NULL, activated_at = NULL
-         WHERE id = 1",
-        [],
-    )?;
+pub async fn clear_active_course(db: &DatabaseConnection) -> Result<()> {
+    let now = Utc::now();
+
+    let mut active: active_course::ActiveModel = match ActiveCourseEntity::find_by_id(1).one(db).await? {
+        Some(model) => model.into_active_model(),
+        None => active_course::ActiveModel { id: ActiveValue::Set(1), ..Default::default() },
+    };
+
+    active.course_id = Set(None);
+    active.lecture_id = Set(None);
+    active.updated_at = Set(now);
+
+    let exists = ActiveCourseEntity::find_by_id(1).one(db).await?.is_some();
+    if exists {
+        active.update(db).await?;
+    } else {
+        active.insert(db).await?;
+    }
 
     Ok(())
 }
 
-/// Set the active lecture for the current active course
-pub fn set_active_lecture(conn: &Connection, lecture_id: i64) -> Result<()> {
-    conn.execute(
-        "UPDATE active
-         SET lecture_id = ?1
-         WHERE id = 1",
-        [lecture_id],
-    )?;
+pub async fn clear_all(db: &DatabaseConnection) -> Result<()> {
+    let now = Utc::now();
 
+    let mut active: active_course::ActiveModel = match ActiveCourseEntity::find_by_id(1).one(db).await? {
+        Some(model) => model.into_active_model(),
+        None => active_course::ActiveModel { id: ActiveValue::Set(1), ..Default::default() },
+    };
+
+    active.semester_id = Set(None);
+    active.course_id = Set(None);
+    active.lecture_id = Set(None);
+    active.activated_at = Set(None);
+    active.updated_at = Set(now);
+
+    let exists = ActiveCourseEntity::find_by_id(1).one(db).await?.is_some();
+    if exists {
+        active.update(db).await?;
+    } else {
+        active.insert(db).await?;
+    }
+    
+    Ok(())
+}
+
+pub async fn set_active_lecture(db: &DatabaseConnection, lecture_id: i64) -> Result<()> {
+    let now = Utc::now();
+
+    let mut active: active_course::ActiveModel = match ActiveCourseEntity::find_by_id(1).one(db).await? {
+        Some(model) => model.into_active_model(),
+        None => active_course::ActiveModel { id: ActiveValue::Set(1), ..Default::default() },
+    };
+
+    active.lecture_id = Set(Some(lecture_id));
+    active.updated_at = Set(now);
+
+    let exists = ActiveCourseEntity::find_by_id(1).one(db).await?.is_some();
+    if exists {
+        active.update(db).await?;
+    } else {
+        active.insert(db).await?;
+    }
+    
     Ok(())
 }

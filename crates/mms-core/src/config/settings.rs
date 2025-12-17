@@ -4,6 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::error::{MmsError, Result};
+use crate::paths;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -87,7 +88,7 @@ impl Default for Config {
 impl Config {
     /// Load config from the default location: ~/.config/mms/config.toml
     pub fn load() -> Result<Self> {
-        let config_path = Self::default_config_path()?;
+        let config_path = paths::default_config_path()?;
         Self::load_from_path(&config_path)
     }
 
@@ -109,7 +110,7 @@ impl Config {
 
     /// Save config to the default location
     pub fn save(&self) -> Result<()> {
-        let config_path = Self::default_config_path()?;
+        let config_path = paths::default_config_path()?;
         self.save_to_path(&config_path)
     }
 
@@ -129,28 +130,6 @@ impl Config {
             .map_err(|e| MmsError::Config(format!("Failed to write config file: {}", e)))?;
 
         Ok(())
-    }
-
-    /// Get the default config path: ~/.config/mms/config.toml
-    pub fn default_config_path() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .ok_or_else(|| MmsError::Config("Could not determine config directory".to_string()))?;
-
-        Ok(config_dir.join("mms").join("config.toml"))
-    }
-
-    /// Get the database path: ~/.local/share/mms/mms.db
-    pub fn database_path() -> Result<PathBuf> {
-        let data_dir = dirs::data_local_dir()
-            .ok_or_else(|| MmsError::Config("Could not determine data directory".to_string()))?;
-
-        let db_dir = data_dir.join("mms");
-
-        // Ensure directory exists
-        fs::create_dir_all(&db_dir)
-            .map_err(|e| MmsError::Config(format!("Failed to create data directory: {}", e)))?;
-
-        Ok(db_dir.join("mms.db"))
     }
 
     /// Initialize a new config file with default values and example categories
@@ -202,46 +181,16 @@ impl Config {
 
     /// Check if a config file exists at the default location
     pub fn exists() -> bool {
-        if let Ok(path) = Self::default_config_path() {
+        if let Ok(path) = paths::default_config_path() {
             path.exists()
         } else {
             false
         }
     }
 
-    /// Get the directory path for a course
-    pub fn course_directory_path(
-        &self,
-        semester_type_initial: char,
-        semester_number: i32,
-        course_short_name: &str,
-    ) -> PathBuf {
-        self.general
-            .university_base_path
-            .join(format!("{}{:02}", semester_type_initial, semester_number))
-            .join(course_short_name)
-    }
-
-    /// Expand tilde in paths
-    pub fn expand_path(path: &PathBuf) -> PathBuf {
-        if let Some(path_str) = path.to_str() {
-            if path_str.starts_with("~/") {
-                if let Some(home) = dirs::home_dir() {
-                    return home.join(&path_str[2..]);
-                }
-            }
-        }
-        path.clone()
-    }
-
-    /// Get the expanded symlink path
-    pub fn symlink_path(&self) -> PathBuf {
-        Self::expand_path(&self.general.symlink_path)
-    }
-
-    /// Get the expanded university base path
+    /// Helper to get expanded university base path
     pub fn university_base_path(&self) -> PathBuf {
-        Self::expand_path(&self.general.university_base_path)
+        paths::expand_path(&self.general.university_base_path)
     }
 }
 
@@ -263,25 +212,6 @@ mod tests {
 
         // Should be able to deserialize it back
         let parsed: Config = toml::from_str(&toml_str).unwrap();
-        assert_eq!(parsed.categories.len(), 5); // ML_FOUND, ML_DIV, ML_CS, ML_EXP, ML_THESIS
-    }
-
-    #[test]
-    fn test_course_directory_path() {
-        let config = Config::default();
-        let path = config.course_directory_path('m', 5, "machine_learning");
-
-        let path_str = path.to_str().unwrap();
-        assert!(path_str.contains("m05"));
-        assert!(path_str.contains("machine_learning"));
-    }
-
-    #[test]
-    fn test_expand_path() {
-        let path = PathBuf::from("~/test");
-        let expanded = Config::expand_path(&path);
-
-        // Should not contain tilde
-        assert!(!expanded.to_str().unwrap().starts_with("~"));
+        assert_eq!(parsed.categories.len(), 5);
     }
 }

@@ -1,14 +1,15 @@
 use std::fs;
 use std::path::PathBuf;
-use std::thread;
 use std::time::Duration;
+use tokio::time::sleep;
 
 use crate::config::Config;
-use crate::db::connection;
+use crate::db::connection_seaorm;
 use crate::db::queries;
 use crate::error::{MmsError, Result};
 use crate::service::scheduler::ScheduleEngine;
 use crate::symlink;
+use sea_orm::DatabaseConnection;
 
 /// Daemon that runs in the background and automatically switches courses
 pub struct Daemon {
@@ -32,7 +33,7 @@ impl Daemon {
     }
 
     /// Start the daemon loop
-    pub fn run(&self) -> Result<()> {
+    pub async fn run(&self) -> Result<()> {
         // Check if another instance is already running
         if self.is_running()? {
             return Err(MmsError::Other(
@@ -58,13 +59,13 @@ impl Daemon {
 
         // Main daemon loop
         while running.load(std::sync::atomic::Ordering::SeqCst) {
-            if let Err(e) = self.check_and_update() {
+            if let Err(e) = self.check_and_update().await {
                 eprintln!("Error checking schedule: {}", e);
                 // Continue running despite errors
             }
 
             // Sleep for the configured interval
-            thread::sleep(self.check_interval);
+            sleep(self.check_interval).await;
         }
 
         // Cleanup on exit
@@ -75,18 +76,18 @@ impl Daemon {
     }
 
     /// Check schedule and update active course if needed
-    fn check_and_update(&self) -> Result<()> {
+    async fn check_and_update(&self) -> Result<()> {
         eprintln!("[DEBUG] Starting check_and_update...");
 
-        let conn = connection::get().map_err(|e| {
+        let conn = connection_seaorm::get_connection().await.map_err(|e| {
             eprintln!("[DEBUG] Failed to get connection: {}", e);
-            e
+            MmsError::Database(e)
         })?;
 
         eprintln!("[DEBUG] Got database connection");
 
         // Get current active course
-        let active = queries::active::get(&conn).map_err(|e| {
+        let active = queries::active::get(&conn).await.map_err(|e| {
             eprintln!("[DEBUG] Failed to get active state: {}", e);
             e
         })?;
@@ -95,7 +96,7 @@ impl Daemon {
         eprintln!("[DEBUG] Current course_id: {:?}", current_course_id);
 
         // Determine what course should be active now
-        let should_be_active = ScheduleEngine::determine_active_course_now(&conn).map_err(|e| {
+        let should_be_active = ScheduleEngine::determine_active_course_now(&conn).await.map_err(|e| {
             eprintln!("[DEBUG] Failed to determine active course: {}", e);
             e
         })?;
@@ -106,31 +107,31 @@ impl Daemon {
         // Check if we need to switch
         if current_course_id != should_be_active {
             eprintln!("[DEBUG] Switching course...");
-            self.switch_course(&conn, current_course_id, should_be_active)?;
+            self.switch_course(&conn, current_course_id, should_be_active).await?;
         }
 
         Ok(())
     }
 
     /// Switch to a different active course
-    fn switch_course(
+    async fn switch_course (
         &self,
-        conn: &rusqlite::Connection,
+        conn: &DatabaseConnection,
         from: Option<i64>,
         to: Option<i64>,
     ) -> Result<()> {
         match (from, to) {
             (Some(old_id), Some(new_id)) => {
-                let old_course = queries::course::get_by_id(conn, old_id)?;
-                let new_course = queries::course::get_by_id(conn, new_id)?;
-                let semester = queries::semester::get_by_id(conn, new_course.semester_id)?;
+                let old_course = queries::course::get_by_id(conn, old_id).await?;
+                let new_course = queries::course::get_by_id(conn, new_id).await?;
+                let semester = queries::semester::get_by_id(conn, new_course.semester_id).await?;
 
                 // Update active course
-                queries::active::set_active_course(conn, new_id, new_course.semester_id)?;
+                queries::active::set_active_course(conn, new_id, new_course.semester_id).await?;
 
                 // Update symlinks
-                symlink::update_semester_symlink(&semester.folder_name())?;
-                symlink::update_course_symlink(&semester.folder_name(), new_course.folder_name())?;
+                symlink::update_semester_symlink(&semester.directory_path)?;
+                symlink::update_course_symlink(&semester.directory_path, &new_course.short_name)?;
 
                 println!(
                     "[{}] Switched course: {} -> {}",
@@ -140,10 +141,10 @@ impl Daemon {
                 );
             }
             (Some(old_id), None) => {
-                let old_course = queries::course::get_by_id(conn, old_id)?;
+                let old_course = queries::course::get_by_id(conn, old_id).await?;
 
                 // Clear active course
-                queries::active::clear_active_course(conn)?;
+                queries::active::clear_active_course(conn).await?;
 
                 // Remove course symlink but keep semester symlink
                 let _ = symlink::remove_course_symlink();
@@ -155,15 +156,15 @@ impl Daemon {
                 );
             }
             (None, Some(new_id)) => {
-                let new_course = queries::course::get_by_id(conn, new_id)?;
-                let semester = queries::semester::get_by_id(conn, new_course.semester_id)?;
+                let new_course = queries::course::get_by_id(conn, new_id).await?;
+                let semester = queries::semester::get_by_id(conn, new_course.semester_id).await?;
 
                 // Set active course
-                queries::active::set_active_course(conn, new_id, new_course.semester_id)?;
+                queries::active::set_active_course(conn, new_id, new_course.semester_id).await?;
 
                 // Update symlinks
-                symlink::update_semester_symlink(&semester.folder_name())?;
-                symlink::update_course_symlink(&semester.folder_name(), new_course.folder_name())?;
+                symlink::update_semester_symlink(&semester.directory_path)?;
+                symlink::update_course_symlink(&semester.directory_path, &new_course.short_name)?;
 
                 println!(
                     "[{}] Course started: {}",
@@ -213,9 +214,9 @@ impl Daemon {
             if !Self::process_exists(pid) {
                 // Remove PID file
                 fs::remove_file(&self.pid_file)?;
-                return Ok(());
+                return Ok(())
             }
-            thread::sleep(Duration::from_millis(100));
+            std::thread::sleep(Duration::from_millis(100));
         }
 
         Err(MmsError::Other("Failed to stop daemon".to_string()))
@@ -293,7 +294,6 @@ impl Daemon {
     #[cfg(not(unix))]
     fn process_exists(_pid: u32) -> bool {
         // On Windows, always return false for now
-        // TODO: Implement Windows support
         false
     }
 

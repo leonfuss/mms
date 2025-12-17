@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum MmsError {
     #[error("Database error: {0}")]
-    Database(#[from] rusqlite::Error),
+    Database(#[from] sea_orm::DbErr),
 
     #[error("Config error: {0}")]
     Config(String),
@@ -19,6 +19,9 @@ pub enum MmsError {
 
     #[error("Parse error: {0}")]
     Parse(String),
+
+    #[error("Not found: {0}")]
+    NotFound(String),
 
     #[error("Course not found: {0}")]
     CourseNotFound(i64),

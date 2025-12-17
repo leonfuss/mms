@@ -1,4 +1,4 @@
-pub mod connection;
+pub mod connection_seaorm;
 pub mod migrations;
-pub mod models;
-pub mod queries;
+pub mod entities;
+pub mod queries; // Will be rewritten to use sea-orm entities

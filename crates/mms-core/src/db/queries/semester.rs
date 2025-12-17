@@ -1,142 +1,66 @@
-use crate::db::models::semester::{Semester, SemesterType};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QueryOrder,
+};
 use crate::error::Result;
-use rusqlite::{Connection, params};
+use crate::db::entities::{semesters, prelude::Semesters};
+use chrono::Utc;
+use sea_orm::sea_query::Expr;
 
-/// Insert a new semester into the database
-pub fn insert(conn: &Connection, semester: &Semester) -> Result<i64> {
-    conn.execute(
-        "INSERT INTO semesters (type, number, is_current, default_location)
-         VALUES (?1, ?2, ?3, ?4)",
-        params![
-            semester.type_.to_str(),
-            semester.number,
-            semester.is_current,
-            semester.default_location,
-        ],
-    )?;
-
-    Ok(conn.last_insert_rowid())
+pub async fn insert(db: &DatabaseConnection, semester: semesters::ActiveModel) -> Result<i64> {
+    let res = semester.insert(db).await?;
+    Ok(res.id)
 }
 
-/// Get a semester by ID
-pub fn get_by_id(conn: &Connection, id: i64) -> Result<Semester> {
-    let mut stmt = conn.prepare(
-        "SELECT id, type, number, is_current, default_location, created_at
-         FROM semesters
-         WHERE id = ?1",
-    )?;
-
-    let semester = stmt.query_row([id], |row| {
-        let type_str: String = row.get(1)?;
-        Ok(Semester {
-            id: Some(row.get(0)?),
-            type_: SemesterType::from_str(&type_str).unwrap(),
-            number: row.get(2)?,
-            is_current: row.get(3)?,
-            default_location: row.get(4)?,
-            created_at: row.get(5)?,
-        })
-    })?;
-
+pub async fn get_by_id(db: &DatabaseConnection, id: i64) -> Result<semesters::Model> {
+    let semester = Semesters::find_by_id(id).one(db).await?
+        .ok_or_else(|| crate::error::MmsError::NotFound(format!("Semester with ID {} not found", id)))?;
     Ok(semester)
 }
 
-/// List all semesters
-pub fn list(conn: &Connection) -> Result<Vec<Semester>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, type, number, is_current, default_location, created_at
-         FROM semesters
-         ORDER BY type DESC, number DESC",
-    )?;
-
-    let semesters = stmt
-        .query_map([], |row| {
-            let type_str: String = row.get(1)?;
-            Ok(Semester {
-                id: Some(row.get(0)?),
-                type_: SemesterType::from_str(&type_str).unwrap(),
-                number: row.get(2)?,
-                is_current: row.get(3)?,
-                default_location: row.get(4)?,
-                created_at: row.get(5)?,
-            })
-        })?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
-
+pub async fn list(db: &DatabaseConnection) -> Result<Vec<semesters::Model>> {
+    let semesters = Semesters::find()
+        .order_by_desc(semesters::Column::Type)
+        .order_by_desc(semesters::Column::Number)
+        .all(db).await?;
     Ok(semesters)
 }
 
-/// Get the current semester
-pub fn get_current(conn: &Connection) -> Result<Option<Semester>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, type, number, is_current, default_location, created_at
-         FROM semesters
-         WHERE is_current = 1
-         LIMIT 1",
-    )?;
-
-    let result = stmt.query_row([], |row| {
-        let type_str: String = row.get(1)?;
-        Ok(Semester {
-            id: Some(row.get(0)?),
-            type_: SemesterType::from_str(&type_str).unwrap(),
-            number: row.get(2)?,
-            is_current: row.get(3)?,
-            default_location: row.get(4)?,
-            created_at: row.get(5)?,
-        })
-    });
-
-    match result {
-        Ok(semester) => Ok(Some(semester)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(e.into()),
-    }
+pub async fn get_current(db: &DatabaseConnection) -> Result<Option<semesters::Model>> {
+    let semester = Semesters::find()
+        .filter(semesters::Column::IsCurrent.eq(true))
+        .one(db).await?;
+    Ok(semester)
 }
 
-/// Set a semester as current (and unset all others)
-pub fn set_current(conn: &Connection, id: i64) -> Result<()> {
-    // First verify the semester exists
-    get_by_id(conn, id)?;
-
+pub async fn set_current(db: &DatabaseConnection, id: i64) -> Result<()> {
     // Unset all semesters
-    conn.execute("UPDATE semesters SET is_current = 0", [])?;
+    semesters::Entity::update_many()
+        .col_expr(semesters::Column::IsCurrent, Expr::value(false))
+        .exec(db).await?;
 
     // Set the specified semester as current
-    conn.execute("UPDATE semesters SET is_current = 1 WHERE id = ?1", [id])?;
+    let mut semester: semesters::ActiveModel = Semesters::find_by_id(id).one(db).await?
+        .ok_or_else(|| crate::error::MmsError::NotFound(format!("Semester with ID {} not found", id)))?
+        .into();
+    
+    semester.is_current = ActiveValue::Set(true);
+    semester.updated_at = ActiveValue::Set(Utc::now()); // Changed to Utc::now()
+
+    semester.update(db).await?;
 
     Ok(())
 }
 
-/// Update a semester
-pub fn update(conn: &Connection, semester: &Semester) -> Result<()> {
-    let id = semester.id.ok_or_else(|| {
-        crate::error::MmsError::Other("Cannot update semester without id".to_string())
-    })?;
-
-    conn.execute(
-        "UPDATE semesters
-         SET type = ?1, number = ?2, is_current = ?3, default_location = ?4
-         WHERE id = ?5",
-        params![
-            semester.type_.to_str(),
-            semester.number,
-            semester.is_current,
-            semester.default_location,
-            id,
-        ],
-    )?;
-
-    Ok(())
+pub async fn update(db: &DatabaseConnection, semester: semesters::ActiveModel) -> Result<semesters::Model> {
+    let semester = semester.update(db).await?;
+    Ok(semester)
 }
 
-/// Delete a semester
-pub fn delete(conn: &Connection, id: i64) -> Result<()> {
-    let rows_affected = conn.execute("DELETE FROM semesters WHERE id = ?1", [id])?;
-
-    if rows_affected == 0 {
-        return Err(crate::error::MmsError::SemesterNotFound(id));
+pub async fn delete(db: &DatabaseConnection, id: i64) -> Result<()> {
+    let res = Semesters::delete_by_id(id).exec(db).await?;
+    if res.rows_affected == 0 {
+        return Err(crate::error::MmsError::NotFound(format!("Semester with ID {} not found", id)));
     }
-
     Ok(())
 }

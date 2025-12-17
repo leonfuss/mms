@@ -24,19 +24,19 @@ pub enum ScheduleType {
 
 impl ScheduleType {
     pub fn from_str(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "lecture" => Some(ScheduleType::Lecture),
-            "tutorium" => Some(ScheduleType::Tutorium),
-            "exercise" => Some(ScheduleType::Exercise),
+        match s {
+            "lecture" | "Lecture" => Some(ScheduleType::Lecture),
+            "tutorium" | "Tutorium" => Some(ScheduleType::Tutorium),
+            "exercise" | "Exercise" => Some(ScheduleType::Exercise),
             _ => None,
         }
     }
 
     pub fn to_str(&self) -> &'static str {
         match self {
-            ScheduleType::Lecture => "lecture",
-            ScheduleType::Tutorium => "tutorium",
-            ScheduleType::Exercise => "exercise",
+            ScheduleType::Lecture => "Lecture",
+            ScheduleType::Tutorium => "Tutorium",
+            ScheduleType::Exercise => "Exercise",
         }
     }
 }

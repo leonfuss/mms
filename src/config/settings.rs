@@ -177,7 +177,7 @@ impl Config {
             "ML_CS".to_string(),
             CategoryConfig {
                 required_ects: 18,
-                counts_towards_average: false,
+                counts_towards_average: true,
             },
         );
 
@@ -193,7 +193,7 @@ impl Config {
             "ML_THESIS".to_string(),
             CategoryConfig {
                 required_ects: 30,
-                counts_towards_average: false,
+                counts_towards_average: true,
             },
         );
 

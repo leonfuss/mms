@@ -29,23 +29,23 @@ pub enum EventType {
 
 impl EventType {
     pub fn from_str(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "one-time" | "onetime" => Some(EventType::OneTime),
-            "makeup" => Some(EventType::Makeup),
-            "special" => Some(EventType::Special),
-            "override" => Some(EventType::Override),
-            "cancelled" => Some(EventType::Cancelled),
+        match s {
+            "one-time" | "onetime" | "OneTime" => Some(EventType::OneTime),
+            "makeup" | "Makeup" => Some(EventType::Makeup),
+            "special" | "Special" => Some(EventType::Special),
+            "override" | "Override" => Some(EventType::Override),
+            "cancelled" | "Cancelled" => Some(EventType::Cancelled),
             _ => None,
         }
     }
 
     pub fn to_str(&self) -> &'static str {
         match self {
-            EventType::OneTime => "one-time",
-            EventType::Makeup => "makeup",
-            EventType::Special => "special",
-            EventType::Override => "override",
-            EventType::Cancelled => "cancelled",
+            EventType::OneTime => "OneTime",
+            EventType::Makeup => "Makeup",
+            EventType::Special => "Special",
+            EventType::Override => "Override",
+            EventType::Cancelled => "Cancelled",
         }
     }
 }

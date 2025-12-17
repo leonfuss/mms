@@ -65,4 +65,9 @@ impl Course {
         self.counts_towards_average = counts;
         self
     }
+
+    /// Get the folder name for this course (uses short_name)
+    pub fn folder_name(&self) -> &str {
+        &self.short_name
+    }
 }

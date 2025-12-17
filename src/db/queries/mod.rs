@@ -1,1 +1,5 @@
-// Query modules will be added as we implement CRUD operations
+pub mod semester;
+pub mod course;
+pub mod active;
+pub mod schedule;
+pub mod event;

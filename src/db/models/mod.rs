@@ -6,7 +6,7 @@ pub mod exam;
 pub mod holiday;
 pub mod lecture;
 pub mod todo;
-pub mod active_course;
+pub mod active;
 pub mod category;
 
 pub use semester::Semester;
@@ -17,5 +17,5 @@ pub use exam::Exam;
 pub use holiday::{Holiday, HolidayException};
 pub use lecture::Lecture;
 pub use todo::Todo;
-pub use active_course::ActiveCourse;
+pub use active::Active;
 pub use category::CategoryRequirement;

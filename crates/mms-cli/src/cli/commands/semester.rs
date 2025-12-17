@@ -1,9 +1,10 @@
 use crate::cli::args::SemesterAction;
 use crate::cli::prompt_helpers::*;
-use crate::db::models::semester::{Semester, SemesterType};
-use crate::db::connection;
-use crate::db::queries;
-use crate::error::{MmsError, Result};
+use mms_core::db::models::semester::{Semester, SemesterType};
+use mms_core::db::connection;
+use mms_core::db::queries;
+use anyhow::Result;
+use mms_core::error::MmsError;
 use colored::Colorize;
 
 pub fn handle(action: SemesterAction) -> Result<()> {
@@ -23,7 +24,7 @@ fn handle_add(type_str: String, number: i32, location: Option<String>) -> Result
     let conn = connection::get()?;
 
     // Load config to get default location and base path
-    let config = crate::config::Config::load()?;
+    let config = mms_core::config::Config::load()?;
     let final_location = location.unwrap_or(config.general.default_location.clone());
 
     let semester = Semester {
@@ -131,10 +132,10 @@ fn handle_set_current(id: i64) -> Result<()> {
     queries::active::set_active_semester(&conn, id)?;
 
     // Update the cs (current semester) symlink
-    crate::symlink::update_semester_symlink(&semester.folder_name())?;
+    mms_core::symlink::update_semester_symlink(&semester.folder_name())?;
 
     // Remove the cc symlink since no course is active now
-    let _ = crate::symlink::remove_course_symlink(); // Ignore error if doesn't exist
+    let _ = mms_core::symlink::remove_course_symlink(); // Ignore error if doesn't exist
 
     println!("{}", "✓ Current semester updated!".green());
     println!("  {}", semester.to_string().bold());
@@ -162,7 +163,7 @@ pub fn add_interactive() -> Result<()> {
         .map_err(|_| MmsError::Parse("Invalid semester number".to_string()))?;
 
     // Load config to show default location
-    let config = crate::config::Config::load()?;
+    let config = mms_core::config::Config::load()?;
     let default_loc = config.general.default_location.clone();
 
     let use_default_location = prompt_confirm(&format!("Use default location ({})?", default_loc), true)?;

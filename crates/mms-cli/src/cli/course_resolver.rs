@@ -1,8 +1,9 @@
-use crate::config::Config;
-use crate::db::connection;
-use crate::db::models::course::Course;
-use crate::db::queries;
-use crate::error::{MmsError, Result};
+use mms_core::config::Config;
+use mms_core::db::connection;
+use mms_core::db::models::course::Course;
+use mms_core::db::queries;
+use anyhow::Result;
+use mms_core::error::MmsError;
 use colored::Colorize;
 use dialoguer::FuzzySelect;
 use std::env;
@@ -39,7 +40,7 @@ impl CourseResolver {
             return Err(MmsError::Other(format!(
                 "Could not find course with ID or shortname '{}'",
                 input_str
-            )));
+            )).into());
         }
 
         // 2. Try to infer from current directory
@@ -115,7 +116,7 @@ impl CourseResolver {
         if courses.is_empty() {
             return Err(MmsError::Other(
                 "No courses found. Create one first with 'mms course add'".to_string(),
-            ));
+            ).into());
         }
 
         // Build selection items with semester info
@@ -180,7 +181,7 @@ impl CourseResolver {
             }
         }
 
-        Err(MmsError::Other("Invalid selection".to_string()))
+        Err(MmsError::Other("Invalid selection".to_string()).into())
     }
 
     /// Resolve course path for display purposes

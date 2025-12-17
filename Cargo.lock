@@ -838,9 +838,21 @@ dependencies = [
  "chrono",
  "clap",
  "colored",
- "config",
  "ctrlc",
  "dialoguer",
+ "dirs",
+ "mms-core",
+ "thiserror",
+]
+
+[[package]]
+name = "mms-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "config",
+ "ctrlc",
  "dirs",
  "git2",
  "rusqlite",

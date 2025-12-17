@@ -1,8 +1,9 @@
-use crate::config::Config;
-use crate::db::connection;
-use crate::db::models::semester::Semester;
-use crate::db::queries;
-use crate::error::{MmsError, Result};
+use mms_core::config::Config;
+use mms_core::db::connection;
+use mms_core::db::models::semester::Semester;
+use mms_core::db::queries;
+use anyhow::Result;
+use mms_core::error::MmsError;
 use colored::Colorize;
 use dialoguer::FuzzySelect;
 use std::env;
@@ -38,7 +39,7 @@ impl SemesterResolver {
             return Err(MmsError::Other(format!(
                 "Could not find semester with ID or shorthand '{}'",
                 input_str
-            )));
+            )).into());
         }
 
         // 2. Try to infer from current directory
@@ -89,8 +90,8 @@ impl SemesterResolver {
         let semesters = queries::semester::list(&conn)?;
         for semester in semesters {
             let matches_type = match semester.type_ {
-                crate::db::models::semester::SemesterType::Bachelor => semester_type == "bachelor",
-                crate::db::models::semester::SemesterType::Master => semester_type == "master",
+                mms_core::db::models::semester::SemesterType::Bachelor => semester_type == "bachelor",
+                mms_core::db::models::semester::SemesterType::Master => semester_type == "master",
             };
 
             if matches_type && semester.number == number {
@@ -139,7 +140,7 @@ impl SemesterResolver {
         if semesters.is_empty() {
             return Err(MmsError::Other(
                 "No semesters found. Create one first with 'mms semester add'".to_string(),
-            ));
+            ).into());
         }
 
         // Build selection items

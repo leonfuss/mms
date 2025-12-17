@@ -1,5 +1,5 @@
-use crate::config::Config;
-use crate::error::Result;
+use mms_core::config::Config;
+use anyhow::Result;
 use colored::Colorize;
 
 pub fn handle_init() -> Result<()> {

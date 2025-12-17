@@ -1,16 +1,10 @@
 mod cli;
-mod config;
-mod db;
-mod error;
-mod service;
-mod sync;
-mod symlink;
 
 use clap::Parser;
 use cli::commands;
 use cli::{Cli, Commands};
 use colored::Colorize;
-use error::Result;
+use anyhow::Result;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();

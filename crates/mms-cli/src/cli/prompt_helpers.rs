@@ -2,7 +2,7 @@
 ///
 /// This module provides consistent prompting patterns across the application
 
-use crate::error::Result;
+use anyhow::Result;
 use dialoguer::{Input, Select, Confirm};
 
 // ============================================================================

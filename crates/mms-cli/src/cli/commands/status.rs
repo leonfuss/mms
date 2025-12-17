@@ -1,19 +1,19 @@
-use crate::error::Result;
-use crate::sync;
+use anyhow::Result;
+use mms_core::sync;
 use colored::Colorize;
 
 pub fn handle_status() -> Result<()> {
-    let conn = crate::db::connection::get()?;
+    let conn = mms_core::db::connection::get()?;
 
     println!("{}", "System Status".bold().underline());
     println!();
 
     // Get active state
-    let active = crate::db::queries::active::get(&conn)?;
+    let active = mms_core::db::queries::active::get(&conn)?;
 
     // Show active semester
     if let Some(semester_id) = active.semester_id {
-        let semester = crate::db::queries::semester::get_by_id(&conn, semester_id)?;
+        let semester = mms_core::db::queries::semester::get_by_id(&conn, semester_id)?;
         println!("{} {}", "Active Semester:".bold(), semester.to_string().green());
     } else {
         println!("{} {}", "Active Semester:".bold(), "None".yellow());
@@ -21,14 +21,14 @@ pub fn handle_status() -> Result<()> {
 
     // Show active course
     if let Some(course_id) = active.course_id {
-        let course = crate::db::queries::course::get_by_id(&conn, course_id)?;
+        let course = mms_core::db::queries::course::get_by_id(&conn, course_id)?;
         println!("{} {}", "Active Course:  ".bold(), course.name.green());
     } else {
         println!("{} {}", "Active Course:  ".bold(), "None".yellow());
     }
 
     // Show symlink status
-    let (cs_target, cc_target) = crate::symlink::check_symlinks()?;
+    let (cs_target, cc_target) = mms_core::symlink::check_symlinks()?;
     println!();
     println!("{}", "Symlinks:".bold());
     if let Some(target) = cs_target {
@@ -68,7 +68,7 @@ pub fn handle_status() -> Result<()> {
     if !status.semesters_in_db_only.is_empty() {
         println!("{}", "⚠ Semesters in database without folders:".yellow().bold());
         for semester in &status.semesters_in_db_only {
-            let expected_path = crate::config::Config::load()?
+            let expected_path = mms_core::config::Config::load()?
                 .general
                 .university_base_path
                 .join(semester.folder_name());

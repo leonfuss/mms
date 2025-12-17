@@ -1,8 +1,8 @@
-use crate::db::connection;
-use crate::db::models::event::EventType;
-use crate::db::models::schedule::{CourseSchedule, ScheduleType};
-use crate::db::queries;
-use crate::error::Result;
+use mms_core::db::connection;
+use mms_core::db::models::event::EventType;
+use mms_core::db::models::schedule::{CourseSchedule, ScheduleType};
+use mms_core::db::queries;
+use anyhow::Result;
 use chrono::{Datelike, Local, NaiveTime};
 use colored::Colorize;
 

@@ -1,11 +1,12 @@
 use crate::cli::args::CourseAction;
 use crate::cli::semester_resolver::SemesterResolver;
 use crate::cli::prompt_helpers::*;
-use crate::config::Config;
-use crate::db::connection;
-use crate::db::models::course::Course;
-use crate::db::queries;
-use crate::error::{MmsError, Result};
+use mms_core::config::Config;
+use mms_core::db::connection;
+use mms_core::db::models::course::Course;
+use mms_core::db::queries;
+use anyhow::Result;
+use mms_core::error::MmsError;
 use colored::Colorize;
 use dialoguer::{Input, Select, Confirm};
 
@@ -33,7 +34,7 @@ fn handle_add_interactive() -> Result<()> {
     let all_semesters = queries::semester::list(&conn)?;
 
     let semester = if all_semesters.is_empty() {
-        return Err(MmsError::Other("No semesters found. Create a semester first with 'mms semester add'".to_string()));
+        return Err(MmsError::Other("No semesters found. Create a semester first with 'mms semester add'".to_string()).into());
     } else if let Some(current) = current_semester {
         let use_current = Confirm::new()
             .with_prompt(format!("Add to current semester ({})?", current.to_string()))
@@ -425,8 +426,8 @@ fn handle_set_active(id: i64) -> Result<()> {
     queries::active::set_active_course(&conn, id, course.semester_id)?;
 
     // Update both symlinks
-    crate::symlink::update_semester_symlink(&semester.folder_name())?;
-    crate::symlink::update_course_symlink(&semester.folder_name(), course.folder_name())?;
+    mms_core::symlink::update_semester_symlink(&semester.folder_name())?;
+    mms_core::symlink::update_course_symlink(&semester.folder_name(), course.folder_name())?;
 
     println!("{}", "✓ Active course set!".green());
     println!("  {}", course.name.bold());

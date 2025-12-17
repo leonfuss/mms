@@ -1,11 +1,12 @@
 use crate::cli::args::ScheduleAction;
 use crate::cli::course_resolver::CourseResolver;
 use crate::cli::prompt_helpers::*;
-use crate::db::connection;
-use crate::db::models::event::{CourseEvent, EventType};
-use crate::db::models::schedule::{CourseSchedule, ScheduleType};
-use crate::db::queries;
-use crate::error::{MmsError, Result};
+use mms_core::db::connection;
+use mms_core::db::models::event::{CourseEvent, EventType};
+use mms_core::db::models::schedule::{CourseSchedule, ScheduleType};
+use mms_core::db::queries;
+use anyhow::Result;
+use mms_core::error::MmsError;
 use chrono::NaiveTime;
 use colored::Colorize;
 use dialoguer::{Confirm, Input};
@@ -64,7 +65,7 @@ fn parse_day_of_week(day: &str) -> Result<u32> {
         "friday" => Ok(4),
         "saturday" => Ok(5),
         "sunday" => Ok(6),
-        _ => Err(MmsError::Parse(format!("Invalid day of week: {}", day))),
+        _ => Err(MmsError::Parse(format!("Invalid day of week: {}", day)).into()),
     }
 }
 
@@ -84,11 +85,11 @@ fn day_of_week_to_string(day: u32) -> &'static str {
 /// Parse date in dd.mm.yyyy format (European format)
 /// Future: Can be extended to use locale-aware parsing with icu4x
 fn parse_date(date_str: &str) -> Result<chrono::NaiveDate> {
-    chrono::NaiveDate::parse_from_str(date_str, "%d.%m.%Y")
+    Ok(chrono::NaiveDate::parse_from_str(date_str, "%d.%m.%Y")
         .map_err(|_| MmsError::Parse(format!(
             "Invalid date: {}. Use dd.mm.yyyy format (e.g., 24.12.2024)",
             date_str
-        )))
+        )))?)
 }
 
 fn handle_add(
@@ -126,9 +127,9 @@ fn handle_add(
 }
 
 fn handle_add_recurring_internal(
-    conn: rusqlite::Connection,
+    conn: mms_core::rusqlite::Connection,
     course_id: i64,
-    course: crate::db::models::course::Course,
+    course: mms_core::db::models::course::Course,
     day: Option<String>,
     start: Option<String>,
     end: Option<String>,
@@ -200,9 +201,9 @@ fn handle_add_recurring_internal(
 }
 
 fn handle_add_event_internal(
-    conn: rusqlite::Connection,
+    conn: mms_core::rusqlite::Connection,
     course_id: i64,
-    course: crate::db::models::course::Course,
+    course: mms_core::db::models::course::Course,
     date: Option<String>,
     start: Option<String>,
     end: Option<String>,
@@ -287,7 +288,7 @@ fn handle_cancel(schedule_id: i64, date: String, reason: Option<String>) -> Resu
         return Err(MmsError::Other(format!(
             "Date {} is outside schedule range ({} to {})",
             date_parsed, schedule.start_date, schedule.end_date
-        )));
+        )).into());
     }
 
     // Create cancellation event
@@ -331,7 +332,7 @@ fn handle_override(
         return Err(MmsError::Other(format!(
             "Date {} is outside schedule range ({} to {})",
             date_parsed, schedule.start_date, schedule.end_date
-        )));
+        )).into());
     }
 
     // Create override event
@@ -346,7 +347,7 @@ fn handle_override(
     if let Some(t) = time {
         let parts: Vec<&str> = t.split('-').collect();
         if parts.len() != 2 {
-            return Err(MmsError::Parse(format!("Invalid time range: {}. Use HH:MM-HH:MM format", t)));
+            return Err(MmsError::Parse(format!("Invalid time range: {}. Use HH:MM-HH:MM format", t)).into());
         }
         let start_time = NaiveTime::parse_from_str(parts[0], "%H:%M")
             .map_err(|_| MmsError::Parse(format!("Invalid start time: {}", parts[0])))?;

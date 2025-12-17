@@ -14,9 +14,6 @@ pub enum MmsError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("Dialog error: {0}")]
-    Dialog(#[from] dialoguer::Error),
-
     #[error("Date/time parse error: {0}")]
     ChronoParse(#[from] chrono::ParseError),
 

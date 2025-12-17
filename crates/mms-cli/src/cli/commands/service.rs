@@ -1,6 +1,7 @@
 use crate::cli::args::ServiceAction;
-use crate::error::{MmsError, Result};
-use crate::service::{Daemon, DaemonStatus};
+use anyhow::Result;
+use mms_core::error::MmsError;
+use mms_core::service::{Daemon, DaemonStatus};
 use colored::Colorize;
 use std::fs;
 use std::path::PathBuf;
@@ -30,7 +31,7 @@ fn handle_install() -> Result<()> {
         println!();
 
         // Get paths
-        let plist_template = include_str!("../../../resources/com.mms.daemon.plist");
+        let plist_template = include_str!("../../../../../resources/com.mms.daemon.plist");
         let home_dir = dirs::home_dir()
             .ok_or_else(|| MmsError::Other("Could not determine home directory".to_string()))?;
         let launch_agents_dir = home_dir.join("Library/LaunchAgents");

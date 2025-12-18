@@ -5,3 +5,4 @@ pub mod symlink;
 pub mod sync;
 pub mod error;
 pub mod paths;
+pub mod toml;

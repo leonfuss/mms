@@ -22,7 +22,8 @@ impl Daemon {
     /// Create a new daemon instance
     pub fn new() -> Result<Self> {
         let config = Config::load()?;
-        let check_interval = Duration::from_secs(config.service.schedule_check_interval_minutes * 60);
+        // Updated to use config.schedule.check_interval_minutes
+        let check_interval = Duration::from_secs(config.schedule.check_interval_minutes * 60);
         let pid_file = Self::get_pid_file_path()?;
 
         Ok(Self {
@@ -45,7 +46,8 @@ impl Daemon {
         self.write_pid_file()?;
 
         println!("Starting MMS daemon...");
-        println!("Check interval: {} minutes", self.config.service.schedule_check_interval_minutes);
+        // Updated to use config.schedule
+        println!("Check interval: {} minutes", self.config.schedule.check_interval_minutes);
         println!("PID file: {}", self.pid_file.display());
 
         // Set up signal handlers for graceful shutdown

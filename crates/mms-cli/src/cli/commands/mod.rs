@@ -1,10 +1,11 @@
 pub mod config;
-pub mod semester;
-pub mod status;
-pub mod course;
-pub mod schedule;
-pub mod today;
 pub mod service;
+
+// pub mod semester;
+// pub mod status;
+// pub mod course;
+// pub mod schedule;
+// pub mod today;
 
 // TODO: Implement other command modules
 // pub mod todo;

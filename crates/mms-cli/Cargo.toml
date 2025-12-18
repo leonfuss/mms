@@ -14,6 +14,7 @@ chrono = { version = "0.4.42", features = ["serde"] }
 clap = { version = "4.5.48", features = ["derive"] }
 colored = "3.0.0"
 ctrlc = "3.4"
-dialoguer = { version = "0.12.0", features = ["fuzzy-select"] }
+inquire = "0.7.5"
 dirs = "6.0.0"
 thiserror = "2.0.17"
+tokio = { version = "1.36.0", features = ["full"] }

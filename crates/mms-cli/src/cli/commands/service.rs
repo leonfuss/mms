@@ -4,16 +4,15 @@ use mms_core::error::MmsError;
 use mms_core::service::{Daemon, DaemonStatus};
 use colored::Colorize;
 use std::fs;
-use std::path::PathBuf;
 
-pub fn handle(action: ServiceAction) -> Result<()> {
+pub async fn handle(action: ServiceAction) -> Result<()> {
     match action {
         ServiceAction::Install => handle_install(),
         ServiceAction::Uninstall => handle_uninstall(),
         ServiceAction::Start => handle_start(),
         ServiceAction::Stop => handle_stop(),
         ServiceAction::Status => handle_status(),
-        ServiceAction::Run => handle_run(),
+        ServiceAction::Run => handle_run().await,
     }
 }
 
@@ -22,7 +21,7 @@ fn handle_install() -> Result<()> {
     {
         return Err(MmsError::Other(
             "Auto-start installation is only supported on macOS".to_string()
-        ));
+        ).into());
     }
 
     #[cfg(target_os = "macos")]
@@ -86,7 +85,7 @@ fn handle_uninstall() -> Result<()> {
     {
         return Err(MmsError::Other(
             "Auto-start uninstallation is only supported on macOS".to_string()
-        ));
+        ).into());
     }
 
     #[cfg(target_os = "macos")]
@@ -220,12 +219,12 @@ fn handle_status() -> Result<()> {
     Ok(())
 }
 
-fn handle_run() -> Result<()> {
+async fn handle_run() -> Result<()> {
     println!("{}", "Starting MMS service...".bold());
     println!();
 
     let daemon = Daemon::new()?;
-    daemon.run()?;
+    daemon.run().await?; // Await the async run
 
     Ok(())
 }

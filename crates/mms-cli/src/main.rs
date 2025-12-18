@@ -6,18 +6,37 @@ use cli::{Cli, Commands};
 use colored::Colorize;
 use anyhow::Result;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
+    // 1. Startup: Ensure configuration exists and is valid
+    // This will prompt the user if config is missing or invalid
+    let _config = cli::setup::ensure_config()?;
+
+    // 2. Parse arguments
     let cli = Cli::parse();
 
+    // 3. Execute commands
     match cli.command {
         Commands::Config { action } => match action {
             cli::args::ConfigAction::Init => commands::config::handle_init(),
             cli::args::ConfigAction::Show => commands::config::handle_show(),
             cli::args::ConfigAction::Edit => commands::config::handle_edit(),
         },
-        Commands::Semester { action } => commands::semester::handle(action),
-        Commands::Course { action } => commands::course::handle(action),
-        Commands::Schedule { action } => commands::schedule::handle(action),
+        Commands::Service { action } => commands::service::handle(action).await,
+        
+        // TODO: Refactor other commands to async/SeaORM
+        Commands::Semester { action: _ } => {
+            println!("{}", "Command 'semester' is currently being refactored.".yellow());
+            Ok(())
+        }
+        Commands::Course { action: _ } => {
+            println!("{}", "Command 'course' is currently being refactored.".yellow());
+            Ok(())
+        }
+        Commands::Schedule { action: _ } => {
+            println!("{}", "Command 'schedule' is currently being refactored.".yellow());
+            Ok(())
+        }
         Commands::Todo { action } => {
             println!("{}", "TODO: Todo commands not yet implemented".yellow());
             println!("Action: {:?}", action);
@@ -43,9 +62,21 @@ fn main() -> Result<()> {
             println!("Action: {:?}", action);
             Ok(())
         }
-        Commands::Service { action } => commands::service::handle(action),
-        Commands::Status => commands::status::handle_status(),
-        Commands::Sync { dry_run } => commands::status::handle_sync(dry_run),
-        Commands::Today => commands::today::handle(),
+        
+        Commands::Status => {
+             // commands::status::handle_status()
+             println!("{}", "Command 'status' is currently being refactored.".yellow());
+             Ok(())
+        },
+        Commands::Sync { dry_run: _ } => {
+             // commands::status::handle_sync(dry_run)
+             println!("{}", "Command 'sync' is currently being refactored.".yellow());
+             Ok(())
+        },
+        Commands::Today => {
+             // commands::today::handle()
+             println!("{}", "Command 'today' is currently being refactored.".yellow());
+             Ok(())
+        },
     }
 }

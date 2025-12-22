@@ -10,6 +10,12 @@ pub struct MissingConfigFields {
     pub default_location: bool,
 }
 
+impl Default for MissingConfigFields {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MissingConfigFields {
     pub fn new() -> Self {
         Self {

@@ -1,19 +1,19 @@
 use chrono::{Datelike, Local, NaiveDate, NaiveTime};
 use sea_orm::DatabaseConnection;
-use crate::db::entities::course_events::Column as EventColumn; // Changed to course_events
-use crate::db::entities::course_events::Entity as EventEntity; // Changed to course_events
-use crate::db::entities::course_events::Model as EventModel; // Changed to course_events
+// Changed to course_events
+// Changed to course_events
+// Changed to course_events
 use crate::db::entities::course_schedules::Model as CourseScheduleModel;
-use crate::db::entities::holidays::Column as HolidayColumn;
 use crate::db::entities::holiday_exceptions::Column as HolidayExceptionColumn;
-use crate::db::entities::holidays::Entity as HolidayEntity;
 use crate::db::entities::holiday_exceptions::Entity as HolidayExceptionEntity;
+use crate::db::entities::holidays::Column as HolidayColumn;
+use crate::db::entities::holidays::Entity as HolidayEntity;
 use crate::db::entities::holidays::Model as HolidayModel; // Added
 
 use crate::db::queries;
 use crate::error::Result;
 
-use sea_orm::{ColumnTrait, QueryFilter, QuerySelect, EntityTrait, PaginatorTrait}; // Added PaginatorTrait
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter}; // Added PaginatorTrait
 
 /// ScheduleEngine determines which course should be active at any given time
 /// based on recurring schedules, one-time events, cancellations, and holidays.
@@ -58,7 +58,9 @@ impl ScheduleEngine {
             }
 
             // Priority 2: Check for override events
-            if let Some(override_course_id) = Self::get_override_course(conn, course_id, &date_str, &time_str).await? {
+            if let Some(override_course_id) =
+                Self::get_override_course(conn, course_id, &date_str, &time_str).await?
+            {
                 // Override might point to a different course
                 return Ok(Some(override_course_id));
             }
@@ -69,10 +71,10 @@ impl ScheduleEngine {
             }
 
             // Priority 4: Check recurring schedules (if not a holiday)
-            if !Self::is_holiday(conn, semester.id, course_id, &date_str).await? {
-                if Self::is_recurring_schedule_active(conn, course_id, &date_str, &time_str).await? {
-                    return Ok(Some(course_id));
-                }
+            if !Self::is_holiday(conn, course_id, &date_str).await?
+                && Self::is_recurring_schedule_active(conn, course_id, &date_str, &time_str).await?
+            {
+                return Ok(Some(course_id));
             }
         }
 
@@ -87,7 +89,8 @@ impl ScheduleEngine {
         date: &str,
         time: &str,
     ) -> Result<bool> {
-        let events = queries::event::get_by_course_and_date(conn, course_id, date.to_string()).await?;
+        let events =
+            queries::event::get_by_course_and_date(conn, course_id, date.to_string()).await?;
 
         for event in events {
             if event.event_type == "Cancellation" {
@@ -113,10 +116,14 @@ impl ScheduleEngine {
         date: &str,
         time: &str,
     ) -> Result<Option<i64>> {
-        let events = queries::event::get_by_course_and_date(conn, course_id, date.to_string()).await?;
+        let events =
+            queries::event::get_by_course_and_date(conn, course_id, date.to_string()).await?;
 
         for event in events {
-            if event.event_type == "RoomChange" || event.event_type == "TimeChange" || event.event_type == "OneTime" {
+            if event.event_type == "RoomChange"
+                || event.event_type == "TimeChange"
+                || event.event_type == "OneTime"
+            {
                 // If override has times, check if current time matches
                 if let (Some(start), Some(end)) = (event.start_time, event.end_time) {
                     if Self::is_time_in_range(time, &start, &end) {
@@ -139,15 +146,15 @@ impl ScheduleEngine {
         date: &str,
         time: &str,
     ) -> Result<bool> {
-        let events = queries::event::get_by_course_and_date(conn, course_id, date.to_string()).await?;
+        let events =
+            queries::event::get_by_course_and_date(conn, course_id, date.to_string()).await?;
 
         for event in events {
-            if event.event_type == "OneTime" {
-                if let (Some(start), Some(end)) = (event.start_time, event.end_time) {
-                    if Self::is_time_in_range(time, &start, &end) {
-                        return Ok(true);
-                    }
-                }
+            if event.event_type == "OneTime"
+                && let (Some(start), Some(end)) = (event.start_time, event.end_time)
+                && Self::is_time_in_range(time, &start, &end)
+            {
+                return Ok(true);
             }
         }
 
@@ -202,24 +209,21 @@ impl ScheduleEngine {
     }
 
     /// Check if the date is a holiday (unless the course has an exception)
-    async fn is_holiday(
-        conn: &DatabaseConnection,
-        semester_id: i64, // unused but kept for signature compatibility if needed
-        course_id: i64,
-        date: &str,
-    ) -> Result<bool> {
+    async fn is_holiday(conn: &DatabaseConnection, course_id: i64, date: &str) -> Result<bool> {
         // Query holidays that are active for the given date
         let holidays: Vec<HolidayModel> = HolidayEntity::find() // Changed type to Vec<HolidayModel>
             .filter(HolidayColumn::StartDate.lte(date))
             .filter(HolidayColumn::EndDate.gte(date))
-            .all(conn).await?;
+            .all(conn)
+            .await?;
 
         for holiday in holidays {
             // Check if this course has an exception for this holiday
             let exception_count = HolidayExceptionEntity::find()
                 .filter(HolidayExceptionColumn::HolidayId.eq(holiday.id))
                 .filter(HolidayExceptionColumn::CourseId.eq(course_id))
-                .count(conn).await?;
+                .count(conn)
+                .await?;
 
             if exception_count == 0 {
                 // No exception = this is a holiday for this course
@@ -233,9 +237,12 @@ impl ScheduleEngine {
 
     /// Helper: Check if time is within range [start, end)
     fn is_time_in_range(time_str: &str, start_str: &str, end_str: &str) -> bool {
-        let time = NaiveTime::parse_from_str(time_str, "%H:%M").unwrap_or_else(|_| NaiveTime::from_hms_opt(0, 0, 0).unwrap());
-        let start = NaiveTime::parse_from_str(start_str, "%H:%M").unwrap_or_else(|_| NaiveTime::from_hms_opt(0, 0, 0).unwrap());
-        let end = NaiveTime::parse_from_str(end_str, "%H:%M").unwrap_or_else(|_| NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+        let time = NaiveTime::parse_from_str(time_str, "%H:%M")
+            .unwrap_or_else(|_| NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+        let start = NaiveTime::parse_from_str(start_str, "%H:%M")
+            .unwrap_or_else(|_| NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+        let end = NaiveTime::parse_from_str(end_str, "%H:%M")
+            .unwrap_or_else(|_| NaiveTime::from_hms_opt(0, 0, 0).unwrap());
         time >= start && time < end
     }
 
@@ -249,7 +256,7 @@ impl ScheduleEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{NaiveDate, NaiveTime}; // Re-import for tests
+    use chrono::NaiveDate;
 
     #[test]
     fn test_is_time_in_range() {

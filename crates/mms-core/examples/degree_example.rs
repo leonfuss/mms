@@ -8,11 +8,13 @@
 /// 5. Find unmapped courses
 ///
 /// Run with: cargo run --example degree_example
-
 use mms_core::config::Config;
-use mms_core::course::CourseBuilder;
+use mms_core::course::{CourseBuilder, get_course_by_id};
 use mms_core::db::connection_seaorm;
-use mms_core::degree::{DegreeBuilder, DegreeType, get_degree_by_id, get_degree_progress, get_unmapped_courses, map_course_to_area};
+use mms_core::degree::{
+    DegreeBuilder, DegreeType, get_degree_by_id, get_degree_progress, get_unmapped_courses,
+    map_course_to_area,
+};
 use mms_core::semester::{SemesterBuilder, SemesterType};
 
 #[tokio::main]
@@ -34,26 +36,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_total_ects(180)
         .with_start_date("2020-10-01")
         .with_expected_end_date("2023-09-30")
-        .with_area("Core Computer Science", 60, true)     // Counts toward GPA
-        .with_area("Mathematics", 30, true)               // Counts toward GPA
-        .with_area("Electives", 30, false)                // Does NOT count toward GPA
-        .with_area("Practical Courses", 30, true)         // Counts toward GPA
-        .with_area("Bachelor's Thesis", 12, true)         // Counts toward GPA
-        .with_area("General Studies", 18, false)          // Does NOT count toward GPA
+        .with_area("Core Computer Science", 60, true) // Counts toward GPA
+        .with_area("Mathematics", 30, true) // Counts toward GPA
+        .with_area("Electives", 30, false) // Does NOT count toward GPA
+        .with_area("Practical Courses", 30, true) // Counts toward GPA
+        .with_area("Bachelor's Thesis", 12, true) // Counts toward GPA
+        .with_area("General Studies", 18, false) // Does NOT count toward GPA
         .create(&db)
         .await?;
 
-    println!("   ✓ Created degree: {} - {}", degree.degree_type, degree.name);
+    println!(
+        "   ✓ Created degree: {} - {}",
+        degree.degree_type, degree.name
+    );
     println!("     University: {}", degree.university);
     println!("     Total ECTS required: {}", degree.total_ects_required);
     println!("     Number of areas: {}", degree.areas.len());
     println!("\n   Areas defined:");
     for area in &degree.areas {
-        let gpa_marker = if area.counts_towards_gpa { " [GPA]" } else { "" };
-        println!("     - {} ({} ECTS){}",
-            area.category_name,
-            area.required_ects,
-            gpa_marker
+        let gpa_marker = if area.counts_towards_gpa {
+            " [GPA]"
+        } else {
+            ""
+        };
+        println!(
+            "     - {} ({} ECTS){}",
+            area.category_name, area.required_ects, gpa_marker
         );
     }
     println!();
@@ -112,20 +120,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("4. Mapping courses to degree areas...");
 
     // Map algorithms to Core CS
-    map_course_to_area(&db, course1.id, degree.areas[0].id, None).await?;
-    println!("   ✓ Mapped '{}' → '{}'", course1.short_name, degree.areas[0].category_name);
+    map_course_to_area(&db, course1.id, degree.id, degree.areas[0].id, None).await?;
+    println!(
+        "   ✓ Mapped '{}' → '{}'",
+        course1.short_name, degree.areas[0].category_name
+    );
 
     // Map linear algebra to Mathematics
-    map_course_to_area(&db, course2.id, degree.areas[1].id, None).await?;
-    println!("   ✓ Mapped '{}' → '{}'", course2.short_name, degree.areas[1].category_name);
+    map_course_to_area(&db, course2.id, degree.id, degree.areas[1].id, None).await?;
+    println!(
+        "   ✓ Mapped '{}' → '{}'",
+        course2.short_name, degree.areas[1].category_name
+    );
 
     // Map software engineering to Practical Courses
-    map_course_to_area(&db, course3.id, degree.areas[3].id, None).await?;
-    println!("   ✓ Mapped '{}' → '{}'", course3.short_name, degree.areas[3].category_name);
+    map_course_to_area(&db, course3.id, degree.id, degree.areas[3].id, None).await?;
+    println!(
+        "   ✓ Mapped '{}' → '{}'",
+        course3.short_name, degree.areas[3].category_name
+    );
 
     // Map music to General Studies (does not count toward GPA)
-    map_course_to_area(&db, course4.id, degree.areas[5].id, None).await?;
-    println!("   ✓ Mapped '{}' → '{}' (non-GPA)", course4.short_name, degree.areas[5].category_name);
+    map_course_to_area(&db, course4.id, degree.id, degree.areas[5].id, None).await?;
+    println!(
+        "   ✓ Mapped '{}' → '{}' (non-GPA)",
+        course4.short_name, degree.areas[5].category_name
+    );
     println!();
 
     // ================================================================================
@@ -133,13 +153,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ================================================================================
 
     println!("5. Checking for unmapped courses...");
-    let unmapped = get_unmapped_courses(&db, degree.id).await?;
+    let unmapped = get_unmapped_courses(&db).await?;
 
     if unmapped.is_empty() {
         println!("   ✓ All courses are mapped to degree areas!");
     } else {
         println!("   Found {} unmapped course(s):", unmapped.len());
-        for course in unmapped {
+        for course_id in unmapped {
+            let course = get_course_by_id(&db, course_id).await.unwrap();
             println!("     - {} - {}", course.short_name, course.name);
         }
     }
@@ -153,7 +174,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let progress = get_degree_progress(&db, degree.id).await?;
 
     println!("   Degree: {}", progress.degree_name);
-    println!("   Total ECTS: {}/{} ({:.1}%)",
+    println!(
+        "   Total ECTS: {}/{} ({:.1}%)",
         progress.total_ects_earned,
         progress.total_ects_required,
         (progress.total_ects_earned as f64 / progress.total_ects_required as f64) * 100.0
@@ -173,9 +195,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             0.0
         };
 
-        let gpa_marker = if area_progress.counts_towards_gpa { " [GPA]" } else { "" };
+        let gpa_marker = if area_progress.counts_towards_gpa {
+            " [GPA]"
+        } else {
+            ""
+        };
 
-        println!("     - {}: {}/{} ECTS ({:.1}%){}",
+        println!(
+            "     - {}: {}/{} ECTS ({:.1}%){}",
             area_progress.category_name,
             area_progress.earned_ects,
             area_progress.required_ects,
@@ -224,10 +251,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     // Map it to electives, but only count 3 ECTS toward that area
-    map_course_to_area(&db, course5.id, degree.areas[2].id, Some(3)).await?;
-    println!("   ✓ Mapped '{}' (5 ECTS) → '{}' (counts as 3 ECTS)",
-        course5.short_name,
-        degree.areas[2].category_name
+    map_course_to_area(&db, course5.id, degree.id, degree.areas[2].id, Some(3)).await?;
+    println!(
+        "   ✓ Mapped '{}' (5 ECTS) → '{}' (counts as 3 ECTS)",
+        course5.short_name, degree.areas[2].category_name
     );
     println!();
 
@@ -239,7 +266,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Master's degree
     let master = DegreeBuilder::new(DegreeType::Master, "Data Science", "TUM")
-        .with_total_ects(120)  // Masters typically need 120 ECTS
+        .with_total_ects(120) // Masters typically need 120 ECTS
         .with_area("Core Data Science", 40, true)
         .with_area("Specialization", 30, true)
         .with_area("Electives", 20, false)
@@ -251,7 +278,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // PhD (doesn't typically have ECTS)
     let phd = DegreeBuilder::new(DegreeType::PhD, "Computer Science", "TUM")
-        .with_total_ects(0)  // PhDs don't have ECTS requirements
+        .with_total_ects(0) // PhDs don't have ECTS requirements
         .create(&db)
         .await?;
 

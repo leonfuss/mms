@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 
 /// Grading scheme used for a course
@@ -16,24 +18,28 @@ pub enum GradingScheme {
     PassFail,
 }
 
-impl GradingScheme {
+impl FromStr for GradingScheme {
+    type Err = ();
+
     /// Parse from a string (case-insensitive)
-    pub fn from_str(s: &str) -> Option<Self> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "german" | "de" | "ger" => Some(GradingScheme::German),
-            "ects" | "eu" | "european" => Some(GradingScheme::ECTS),
-            "us" | "gpa" | "american" => Some(GradingScheme::US),
-            "percentage" | "percent" | "%" => Some(GradingScheme::Percentage),
-            "passfail" | "pass/fail" | "pf" | "passed" => Some(GradingScheme::PassFail),
-            _ => None,
+            "german" | "de" | "ger" => Ok(GradingScheme::German),
+            "ects" | "eu" | "european" => Ok(GradingScheme::ECTS),
+            "us" | "gpa" | "american" => Ok(GradingScheme::US),
+            "percentage" | "percent" | "%" => Ok(GradingScheme::Percentage),
+            "passfail" | "pass/fail" | "pf" | "passed" => Ok(GradingScheme::PassFail),
+            _ => Err(()),
         }
     }
+}
 
+impl GradingScheme {
     /// Check if a grade is passing in this scheme
     pub fn is_passing(&self, grade: f64) -> bool {
         match self {
-            GradingScheme::German => grade <= 4.0 && grade >= 1.0,
-            GradingScheme::ECTS => grade <= 5.0 && grade >= 1.0, // A=1, B=2, C=3, D=4, E=5, F=6
+            GradingScheme::German => (1.0..=4.0).contains(&grade),
+            GradingScheme::ECTS => (1.0..=5.0).contains(&grade), // A=1, B=2, C=3, D=4, E=5, F=6
             GradingScheme::US => grade >= 2.0, // Typically D (2.0) is minimum passing
             GradingScheme::Percentage => grade >= 50.0,
             GradingScheme::PassFail => grade >= 1.0, // 1 = pass, 0 = fail
@@ -43,10 +49,10 @@ impl GradingScheme {
     /// Validate if a grade value is valid for this scheme
     pub fn is_valid_grade(&self, grade: f64) -> bool {
         match self {
-            GradingScheme::German => grade >= 1.0 && grade <= 5.0,
-            GradingScheme::ECTS => grade >= 1.0 && grade <= 6.0,
-            GradingScheme::US => grade >= 0.0 && grade <= 4.0,
-            GradingScheme::Percentage => grade >= 0.0 && grade <= 100.0,
+            GradingScheme::German => (1.0..=5.0).contains(&grade),
+            GradingScheme::ECTS => (1.0..=6.0).contains(&grade),
+            GradingScheme::US => (0.0..=4.0).contains(&grade),
+            GradingScheme::Percentage => (0.0..=100.0).contains(&grade),
             GradingScheme::PassFail => grade == 0.0 || grade == 1.0,
         }
     }
@@ -91,11 +97,11 @@ impl ECTSGrade {
     /// Convert numeric value to ECTS letter
     pub fn from_numeric(grade: f64) -> Option<Self> {
         match grade {
-            g if g >= 1.0 && g < 1.5 => Some(ECTSGrade::A),
-            g if g >= 1.5 && g < 2.5 => Some(ECTSGrade::B),
-            g if g >= 2.5 && g < 3.5 => Some(ECTSGrade::C),
-            g if g >= 3.5 && g < 4.5 => Some(ECTSGrade::D),
-            g if g >= 4.5 && g < 5.5 => Some(ECTSGrade::E),
+            g if (1.0..1.5).contains(&g) => Some(ECTSGrade::A),
+            g if (1.5..2.5).contains(&g) => Some(ECTSGrade::B),
+            g if (2.5..3.5).contains(&g) => Some(ECTSGrade::C),
+            g if (3.5..4.5).contains(&g) => Some(ECTSGrade::D),
+            g if (4.5..5.5).contains(&g) => Some(ECTSGrade::E),
             g if g >= 5.5 => Some(ECTSGrade::F),
             _ => None,
         }
@@ -133,17 +139,23 @@ mod tests {
 
     #[test]
     fn test_grading_scheme_from_str() {
-        assert_eq!(GradingScheme::from_str("german"), Some(GradingScheme::German));
-        assert_eq!(GradingScheme::from_str("German"), Some(GradingScheme::German));
-        assert_eq!(GradingScheme::from_str("de"), Some(GradingScheme::German));
+        assert_eq!(GradingScheme::from_str("german"), Ok(GradingScheme::German));
+        assert_eq!(GradingScheme::from_str("German"), Ok(GradingScheme::German));
+        assert_eq!(GradingScheme::from_str("de"), Ok(GradingScheme::German));
 
-        assert_eq!(GradingScheme::from_str("ects"), Some(GradingScheme::ECTS));
-        assert_eq!(GradingScheme::from_str("us"), Some(GradingScheme::US));
-        assert_eq!(GradingScheme::from_str("gpa"), Some(GradingScheme::US));
-        assert_eq!(GradingScheme::from_str("percentage"), Some(GradingScheme::Percentage));
-        assert_eq!(GradingScheme::from_str("passfail"), Some(GradingScheme::PassFail));
+        assert_eq!(GradingScheme::from_str("ects"), Ok(GradingScheme::ECTS));
+        assert_eq!(GradingScheme::from_str("us"), Ok(GradingScheme::US));
+        assert_eq!(GradingScheme::from_str("gpa"), Ok(GradingScheme::US));
+        assert_eq!(
+            GradingScheme::from_str("percentage"),
+            Ok(GradingScheme::Percentage)
+        );
+        assert_eq!(
+            GradingScheme::from_str("passfail"),
+            Ok(GradingScheme::PassFail)
+        );
 
-        assert_eq!(GradingScheme::from_str("invalid"), None);
+        assert_eq!(GradingScheme::from_str("invalid"), Err(()));
     }
 
     #[test]

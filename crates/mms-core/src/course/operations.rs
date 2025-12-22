@@ -187,10 +187,8 @@ pub async fn create_course(
                 toml = toml.with_original_path(orig.clone());
             }
         }
-        if has_git_repo {
-            if let Some(url) = &git_remote_url {
-                toml = toml.with_git_repo(url.clone());
-            }
+        if has_git_repo && let Some(url) = &git_remote_url {
+            toml = toml.with_git_repo(url.clone());
         }
 
         toml.write_to_directory(&course_dir)?;
@@ -201,10 +199,9 @@ pub async fn create_course(
     };
 
     // Determine which directory path to use
-    let final_directory_path = if is_external && original_path.is_some() {
-        original_path.as_ref().unwrap().clone()
-    } else {
-        course_dir.to_string_lossy().to_string()
+    let final_directory_path = match (is_external, &original_path) {
+        (true, Some(path)) => path.clone(),
+        (_, _) => course_dir.to_string_lossy().to_string(),
     };
 
     // Create database entry
@@ -289,7 +286,11 @@ pub async fn update_course(
     if !course.is_external && course_dir.exists() {
         let mut toml = CourseToml::read_from_directory(&course_dir).unwrap_or_else(|_| {
             // If TOML doesn't exist, create new one
-            CourseToml::new(course.short_name.clone(), course.name.clone(), course.ects as i32)
+            CourseToml::new(
+                course.short_name.clone(),
+                course.name.clone(),
+                course.ects as i32,
+            )
         });
 
         // Apply updates

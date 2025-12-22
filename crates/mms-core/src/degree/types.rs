@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 
 /// Degree type (Bachelor, Master, or PhD)
@@ -10,14 +12,15 @@ pub enum DegreeType {
     PhD,
 }
 
-impl DegreeType {
-    /// Parse from a string (case-insensitive)
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for DegreeType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "bachelor" | "b" | "ba" | "bsc" => Some(DegreeType::Bachelor),
-            "master" | "m" | "ma" | "msc" => Some(DegreeType::Master),
-            "phd" | "doctorate" | "dr" => Some(DegreeType::PhD),
-            _ => None,
+            "bachelor" | "b" | "ba" | "bsc" => Ok(DegreeType::Bachelor),
+            "master" | "m" | "ma" | "msc" => Ok(DegreeType::Master),
+            "phd" | "doctorate" | "dr" => Ok(DegreeType::PhD),
+            _ => Err(()),
         }
     }
 }
@@ -38,20 +41,20 @@ mod tests {
 
     #[test]
     fn test_degree_type_from_str() {
-        assert_eq!(DegreeType::from_str("bachelor"), Some(DegreeType::Bachelor));
-        assert_eq!(DegreeType::from_str("Bachelor"), Some(DegreeType::Bachelor));
-        assert_eq!(DegreeType::from_str("b"), Some(DegreeType::Bachelor));
-        assert_eq!(DegreeType::from_str("bsc"), Some(DegreeType::Bachelor));
+        assert_eq!(DegreeType::from_str("bachelor"), Ok(DegreeType::Bachelor));
+        assert_eq!(DegreeType::from_str("Bachelor"), Ok(DegreeType::Bachelor));
+        assert_eq!(DegreeType::from_str("b"), Ok(DegreeType::Bachelor));
+        assert_eq!(DegreeType::from_str("bsc"), Ok(DegreeType::Bachelor));
 
-        assert_eq!(DegreeType::from_str("master"), Some(DegreeType::Master));
-        assert_eq!(DegreeType::from_str("m"), Some(DegreeType::Master));
-        assert_eq!(DegreeType::from_str("msc"), Some(DegreeType::Master));
+        assert_eq!(DegreeType::from_str("master"), Ok(DegreeType::Master));
+        assert_eq!(DegreeType::from_str("m"), Ok(DegreeType::Master));
+        assert_eq!(DegreeType::from_str("msc"), Ok(DegreeType::Master));
 
-        assert_eq!(DegreeType::from_str("phd"), Some(DegreeType::PhD));
-        assert_eq!(DegreeType::from_str("PhD"), Some(DegreeType::PhD));
-        assert_eq!(DegreeType::from_str("doctorate"), Some(DegreeType::PhD));
+        assert_eq!(DegreeType::from_str("phd"), Ok(DegreeType::PhD));
+        assert_eq!(DegreeType::from_str("PhD"), Ok(DegreeType::PhD));
+        assert_eq!(DegreeType::from_str("doctorate"), Ok(DegreeType::PhD));
 
-        assert_eq!(DegreeType::from_str("invalid"), None);
+        assert_eq!(DegreeType::from_str("invalid"), Err(()));
     }
 
     #[test]

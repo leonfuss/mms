@@ -269,7 +269,7 @@ impl Daemon {
     /// Check if a process with given PID exists
     #[cfg(unix)]
     fn process_exists(pid: u32) -> bool {
-        use std::os::unix::process::ExitStatusExt;
+        
 
         let output = std::process::Command::new("kill")
             .arg("-0")

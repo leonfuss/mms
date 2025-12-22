@@ -1,5 +1,5 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
+    ActiveModelTrait, DatabaseConnection, EntityTrait,
     QueryOrder,
 };
 use crate::error::Result;

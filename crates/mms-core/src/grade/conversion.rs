@@ -28,7 +28,7 @@ fn to_percentage(grade: f64, scheme: GradingScheme) -> Option<f64> {
             // German: 1.0 (best) -> 100%, 4.0 (worst passing) -> 50%
             // Linear mapping: percentage = 100 - (grade - 1.0) * 50 / 3.0
             let percentage = 100.0 - ((grade - 1.0) * 50.0 / 3.0);
-            Some(percentage.max(0.0).min(100.0))
+            Some(percentage.clamp(0.0, 100.0))
         }
         GradingScheme::ECTS => {
             // Convert ECTS numeric to letter, then to percentage
@@ -47,15 +47,13 @@ fn to_percentage(grade: f64, scheme: GradingScheme) -> Option<f64> {
             Some((grade / 4.0) * 100.0)
         }
         GradingScheme::Percentage => Some(grade),
-        GradingScheme::PassFail => {
-            Some(if grade >= 1.0 { 100.0 } else { 0.0 })
-        }
+        GradingScheme::PassFail => Some(if grade >= 1.0 { 100.0 } else { 0.0 }),
     }
 }
 
 /// Convert percentage to any grading scheme
 fn from_percentage(percentage: f64, scheme: GradingScheme) -> Option<f64> {
-    if percentage < 0.0 || percentage > 100.0 {
+    if !(0.0..=100.0).contains(&percentage) {
         return None;
     }
 
@@ -63,19 +61,15 @@ fn from_percentage(percentage: f64, scheme: GradingScheme) -> Option<f64> {
         GradingScheme::German => {
             // Reverse of to_percentage: grade = 1.0 + (100 - percentage) * 3.0 / 50.0
             let grade = 1.0 + ((100.0 - percentage) * 3.0 / 50.0);
-            Some(grade.max(1.0).min(5.0))
+            Some(grade.clamp(1.0, 5.0))
         }
         GradingScheme::ECTS => {
             let ects_letter = ECTSGrade::from_percentage(percentage);
             Some(ects_letter.to_numeric())
         }
-        GradingScheme::US => {
-            Some((percentage / 100.0) * 4.0)
-        }
+        GradingScheme::US => Some((percentage / 100.0) * 4.0),
         GradingScheme::Percentage => Some(percentage),
-        GradingScheme::PassFail => {
-            Some(if percentage >= 50.0 { 1.0 } else { 0.0 })
-        }
+        GradingScheme::PassFail => Some(if percentage >= 50.0 { 1.0 } else { 0.0 }),
     }
 }
 
@@ -86,11 +80,11 @@ pub fn german_to_ects(german_grade: f64) -> Option<ECTSGrade> {
     }
 
     match german_grade {
-        g if g >= 1.0 && g <= 1.5 => Some(ECTSGrade::A), // Excellent
-        g if g > 1.5 && g <= 2.5 => Some(ECTSGrade::B),  // Very Good
-        g if g > 2.5 && g <= 3.5 => Some(ECTSGrade::C),  // Good
-        g if g > 3.5 && g <= 4.0 => Some(ECTSGrade::D),  // Satisfactory
-        g if g > 4.0 && g <= 5.0 => Some(ECTSGrade::F),  // Fail
+        g if (1.0..=1.5).contains(&g) => Some(ECTSGrade::A), // Excellent
+        g if g > 1.5 && g <= 2.5 => Some(ECTSGrade::B),      // Very Good
+        g if g > 2.5 && g <= 3.5 => Some(ECTSGrade::C),      // Good
+        g if g > 3.5 && g <= 4.0 => Some(ECTSGrade::D),      // Satisfactory
+        g if g > 4.0 && g <= 5.0 => Some(ECTSGrade::F),      // Fail
         _ => None,
     }
 }
@@ -108,7 +102,7 @@ pub fn us_to_german(us_gpa: f64) -> Option<f64> {
     // 1.0 (D) -> 4.0
     // 0.0 (F) -> 5.0
     let german = 5.0 - us_gpa;
-    Some(german.max(1.0).min(5.0))
+    Some(german.clamp(1.0, 5.0))
 }
 
 /// Convert German grade to US GPA
@@ -118,7 +112,7 @@ pub fn german_to_us(german_grade: f64) -> Option<f64> {
     }
 
     let us_gpa = 5.0 - german_grade;
-    Some(us_gpa.max(0.0).min(4.0))
+    Some(us_gpa.clamp(0.0, 4.0))
 }
 
 /// Calculate weighted average of grades
@@ -222,7 +216,8 @@ mod tests {
 
         // Percentage -> ECTS -> Percentage
         let original_pct = 85.0;
-        let ects = convert_grade(original_pct, GradingScheme::Percentage, GradingScheme::ECTS).unwrap();
+        let ects =
+            convert_grade(original_pct, GradingScheme::Percentage, GradingScheme::ECTS).unwrap();
         let back_pct = convert_grade(ects, GradingScheme::ECTS, GradingScheme::Percentage).unwrap();
         assert!((original_pct - back_pct).abs() < 10.0); // ECTS has coarse granularity
     }

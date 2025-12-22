@@ -1,6 +1,5 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder,
 };
 use crate::error::Result;
 use crate::db::entities::{platform_accounts, platform_course_links, prelude::{PlatformAccounts, PlatformCourseLinks}};

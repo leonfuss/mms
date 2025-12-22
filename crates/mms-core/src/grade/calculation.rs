@@ -1,9 +1,8 @@
 use super::conversion::calculate_weighted_average;
 use super::types::GradingScheme;
-use crate::db::entities::prelude::*;
-use crate::db::entities::{courses, degree_areas, degrees, grades};
 use crate::error::Result;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter, QuerySelect, RelationTrait};
+use sea_orm::DatabaseConnection;
+use std::str::FromStr;
 
 /// GPA calculation result
 #[derive(Debug, Clone)]
@@ -53,8 +52,9 @@ pub struct DegreeAreaGPA {
 /// # Arguments
 /// * `db` - Database connection
 /// * `scheme` - Target grading scheme for the GPA
-/// * `include_non_gpa` - If `true`, includes grades from degree areas that don't count towards GPA.
-///                        If `false` (recommended), only includes grades from GPA-counting areas.
+/// * `include_non_gpa`
+///   - If `true`, includes grades from degree areas that don't count towards GPA.
+///   - If `false` (recommended), only includes grades from GPA-counting areas.
 pub async fn calculate_overall_gpa(
     db: &DatabaseConnection,
     scheme: GradingScheme,
@@ -116,8 +116,8 @@ pub async fn calculate_overall_gpa(
         let grade_value = if result.grading_scheme == scheme.to_string() {
             result.grade
         } else {
-            let from_scheme = GradingScheme::from_str(&result.grading_scheme)
-                .unwrap_or(GradingScheme::German);
+            let from_scheme =
+                GradingScheme::from_str(&result.grading_scheme).unwrap_or(GradingScheme::German);
             super::conversion::convert_grade(result.grade, from_scheme, scheme)
                 .unwrap_or(result.grade)
         };
@@ -131,7 +131,7 @@ pub async fn calculate_overall_gpa(
     Ok(GPAInfo {
         gpa,
         total_courses: grade_ects_pairs.len(),
-        total_ects: total_ects as i32,
+        total_ects,
         grading_scheme: scheme,
     })
 }
@@ -142,8 +142,9 @@ pub async fn calculate_overall_gpa(
 /// * `db` - Database connection
 /// * `semester_id` - ID of the semester
 /// * `scheme` - Target grading scheme for the GPA
-/// * `include_non_gpa` - If `true`, includes grades from degree areas that don't count towards GPA.
-///                        If `false` (recommended), only includes grades from GPA-counting areas.
+/// * `include_non_gpa`
+///   - If `true`, includes grades from degree areas that don't count towards GPA.
+///   - If `false` (recommended), only includes grades from GPA-counting areas.
 pub async fn calculate_semester_gpa(
     db: &DatabaseConnection,
     semester_id: i64,
@@ -208,8 +209,8 @@ pub async fn calculate_semester_gpa(
         let grade_value = if result.grading_scheme == scheme.to_string() {
             result.grade
         } else {
-            let from_scheme = GradingScheme::from_str(&result.grading_scheme)
-                .unwrap_or(GradingScheme::German);
+            let from_scheme =
+                GradingScheme::from_str(&result.grading_scheme).unwrap_or(GradingScheme::German);
             super::conversion::convert_grade(result.grade, from_scheme, scheme)
                 .unwrap_or(result.grade)
         };
@@ -223,7 +224,7 @@ pub async fn calculate_semester_gpa(
     Ok(GPAInfo {
         gpa,
         total_courses: grade_ects_pairs.len(),
-        total_ects: total_ects as i32,
+        total_ects,
         grading_scheme: scheme,
     })
 }
@@ -281,8 +282,8 @@ pub async fn calculate_degree_gpa(
         let grade_value = if result.grading_scheme == scheme.to_string() {
             result.grade
         } else {
-            let from_scheme = GradingScheme::from_str(&result.grading_scheme)
-                .unwrap_or(GradingScheme::German);
+            let from_scheme =
+                GradingScheme::from_str(&result.grading_scheme).unwrap_or(GradingScheme::German);
             super::conversion::convert_grade(result.grade, from_scheme, scheme)
                 .unwrap_or(result.grade)
         };
@@ -296,7 +297,7 @@ pub async fn calculate_degree_gpa(
     Ok(GPAInfo {
         gpa,
         total_courses: grade_ects_pairs.len(),
-        total_ects: total_ects as i32,
+        total_ects,
         grading_scheme: scheme,
     })
 }
@@ -350,11 +351,11 @@ pub async fn calculate_degree_area_gpa(
         let grade_value = if result.grading_scheme == scheme.to_string() {
             result.grade
         } else {
-            let from_scheme = GradingScheme::from_str(&result.grading_scheme)
-                .unwrap_or(GradingScheme::German);
+            let from_scheme =
+                GradingScheme::from_str(&result.grading_scheme).unwrap_or(GradingScheme::German);
             super::conversion::convert_grade(result.grade, from_scheme, scheme)
                 .unwrap_or(result.grade)
-            };
+        };
 
         grade_ects_pairs.push((grade_value, result.ects as f64));
         total_ects += result.ects;
@@ -365,7 +366,7 @@ pub async fn calculate_degree_area_gpa(
     Ok(GPAInfo {
         gpa,
         total_courses: grade_ects_pairs.len(),
-        total_ects: total_ects as i32,
+        total_ects,
         grading_scheme: scheme,
     })
 }
@@ -375,8 +376,9 @@ pub async fn calculate_degree_area_gpa(
 /// # Arguments
 /// * `db` - Database connection
 /// * `scheme` - Target grading scheme for the GPA
-/// * `include_non_gpa` - If `true`, includes grades from degree areas that don't count towards GPA.
-///                        If `false` (recommended), only includes grades from GPA-counting areas.
+/// * `include_non_gpa`
+///    - If `true`, includes grades from degree areas that don't count towards GPA.
+///    - If `false` (recommended), only includes grades from GPA-counting areas.
 pub async fn get_detailed_gpa(
     db: &DatabaseConnection,
     scheme: GradingScheme,
@@ -392,8 +394,8 @@ pub async fn get_detailed_gpa(
         total_courses: overall.total_courses,
         total_ects: overall.total_ects,
         grading_scheme: scheme,
-        per_semester: Vec::new(),      // TODO
-        per_degree_area: Vec::new(),   // TODO
+        per_semester: Vec::new(),    // TODO
+        per_degree_area: Vec::new(), // TODO
     })
 }
 

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-use crate::error::{MmsError, MissingConfigFields, Result};
+use crate::error::{MissingConfigFields, MmsError, Result};
 use crate::paths;
 
 // ==================================================================================
@@ -29,7 +29,7 @@ pub struct GeneralConfig {
     pub default_pdf_viewer: String,
 
     pub default_location: String,
-    pub symlink_path: PathBuf,
+    pub symlink_path: PathBuf, // base path for symlinks. eg. /Users/leon/
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -219,17 +219,11 @@ impl PartialConfig {
             MissingConfigFields::new() // This is a different kind of error, should be handled separately
         })?;
 
-        let notes = self.notes.ok_or_else(|| {
-            MissingConfigFields::new()
-        })?;
+        let notes = self.notes.ok_or_else(|| MissingConfigFields::new())?;
 
-        let schedule = self.schedule.ok_or_else(|| {
-            MissingConfigFields::new()
-        })?;
+        let schedule = self.schedule.ok_or_else(|| MissingConfigFields::new())?;
 
-        let sync = self.sync.ok_or_else(|| {
-            MissingConfigFields::new()
-        })?;
+        let sync = self.sync.ok_or_else(|| MissingConfigFields::new())?;
 
         Ok(Config {
             general,

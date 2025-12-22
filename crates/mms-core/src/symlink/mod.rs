@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use std::os::unix::fs as unix_fs;
 use crate::config::Config;
 use crate::error::Result;
+use std::os::unix::fs as unix_fs;
+use std::path::PathBuf;
 
 /// Create or update the cs (current semester) symlink
 pub fn update_semester_symlink(semester_folder_name: &str) -> Result<()> {
@@ -9,7 +9,10 @@ pub fn update_semester_symlink(semester_folder_name: &str) -> Result<()> {
     let symlink_path = get_semester_symlink_path(&config);
 
     // Target path
-    let target_path = config.general.university_base_path.join(semester_folder_name);
+    let target_path = config
+        .general
+        .university_base_path
+        .join(semester_folder_name);
 
     // Remove existing symlink if it exists
     if symlink_path.exists() || symlink_path.is_symlink() {
@@ -28,7 +31,9 @@ pub fn update_course_symlink(semester_folder_name: &str, course_folder_name: &st
     let symlink_path = get_course_symlink_path(&config);
 
     // Target path
-    let target_path = config.general.university_base_path
+    let target_path = config
+        .general
+        .university_base_path
         .join(semester_folder_name)
         .join(course_folder_name);
 
@@ -69,22 +74,12 @@ pub fn remove_course_symlink() -> Result<()> {
 
 /// Get the path where the semester symlink should be created
 fn get_semester_symlink_path(config: &Config) -> PathBuf {
-    // Get home directory
-    if let Some(home) = dirs::home_dir() {
-        home.join("cs")
-    } else {
-        PathBuf::from("~/cs")
-    }
+    config.general.symlink_path.join("cs").into()
 }
 
 /// Get the path where the course symlink should be created
 fn get_course_symlink_path(config: &Config) -> PathBuf {
-    // Get home directory
-    if let Some(home) = dirs::home_dir() {
-        home.join("cc")
-    } else {
-        PathBuf::from("~/cc")
-    }
+    config.general.symlink_path.join("cc").into()
 }
 
 /// Check if symlinks are correctly set up

@@ -8,14 +8,13 @@
 /// 5. Query and update grades
 ///
 /// Run with: cargo run --example grade_example
-
 use mms_core::config::Config;
 use mms_core::course::CourseBuilder;
 use mms_core::db::connection_seaorm;
 use mms_core::degree::{DegreeBuilder, DegreeType, map_course_to_area};
 use mms_core::grade::{
-    calculate_degree_gpa, calculate_overall_gpa, calculate_semester_gpa, convert_grade,
-    get_final_grade, get_grade_by_id, german_to_ects, GradeBuilder, GradingScheme,
+    GradeBuilder, GradingScheme, calculate_degree_gpa, calculate_overall_gpa,
+    calculate_semester_gpa, convert_grade, german_to_ects, get_final_grade, get_grade_by_id,
 };
 use mms_core::semester::{SemesterBuilder, SemesterType};
 
@@ -39,8 +38,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note: "Core CS" counts towards GPA (true), "Electives" does NOT (false)
     let degree = DegreeBuilder::new(DegreeType::Bachelor, "Computer Science", "TUM")
         .with_total_ects(180)
-        .with_area("Core CS", 60, true)        // Counts towards GPA
-        .with_area("Electives", 30, false)     // Does NOT count towards GPA (still need ECTS though)
+        .with_area("Core CS", 60, true) // Counts towards GPA
+        .with_area("Electives", 30, false) // Does NOT count towards GPA (still need ECTS though)
         .create(&db)
         .await?;
 
@@ -71,9 +70,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   ✓ Created degree, semester, and 3 courses\n");
 
     // Map courses to degree areas
-    map_course_to_area(&db, algo.id, degree.areas[0].id, None).await?;
-    map_course_to_area(&db, db_course.id, degree.areas[0].id, None).await?;
-    map_course_to_area(&db, networks.id, degree.areas[1].id, None).await?;
+    map_course_to_area(&db, algo.id, degree.id, degree.areas[0].id, None).await?;
+    map_course_to_area(&db, db_course.id, degree.id, degree.areas[0].id, None).await?;
+    map_course_to_area(&db, networks.id, degree.id, degree.areas[1].id, None).await?;
 
     // ================================================================================
     // RECORDING GRADES WITH COMPONENTS
@@ -93,11 +92,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .record(&db)
         .await?;
 
-    println!("     Grade: {:.2} ({})", grade1.grade, grade1.grading_scheme);
+    println!(
+        "     Grade: {:.2} ({})",
+        grade1.grade, grade1.grading_scheme
+    );
     println!("     Passed: {}", grade1.passed);
     println!("     Components:");
     for comp in &grade1.components {
-        println!("       - {}: weight {:.1}%, earned {:.1}/{:.1}",
+        println!(
+            "       - {}: weight {:.1}%, earned {:.1}/{:.1}",
             comp.component_name,
             comp.weight * 100.0,
             comp.points_earned.unwrap_or(0.0),
@@ -115,7 +118,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .record(&db)
         .await?;
 
-    println!("     Grade: {:.1} ({})", grade2.grade, grade2.grading_scheme);
+    println!(
+        "     Grade: {:.1} ({})",
+        grade2.grade, grade2.grading_scheme
+    );
     println!("     Passed: {}", grade2.passed);
     println!();
 
@@ -133,17 +139,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .record(&db)
         .await?;
 
-    println!("     Grade: {:.2} ({})", grade3.grade, grade3.grading_scheme);
+    println!(
+        "     Grade: {:.2} ({})",
+        grade3.grade, grade3.grading_scheme
+    );
     println!("     Passed: {}", grade3.passed);
     println!("     Components:");
     for comp in &grade3.components {
         if comp.is_bonus {
-            println!("       - {} (BONUS): +{:.1} points",
+            println!(
+                "       - {} (BONUS): +{:.1} points",
                 comp.component_name,
                 comp.bonus_points.unwrap_or(0.0)
             );
         } else {
-            println!("       - {}: weight {:.1}%, grade {:.2}",
+            println!(
+                "       - {}: weight {:.1}%, grade {:.2}",
                 comp.component_name,
                 comp.weight * 100.0,
                 comp.grade.unwrap_or(0.0)
@@ -167,7 +178,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let us_gpa = convert_grade(german_grade, GradingScheme::German, GradingScheme::US);
     println!("   → US GPA: {:.2}", us_gpa.unwrap_or(0.0));
 
-    let percentage = convert_grade(german_grade, GradingScheme::German, GradingScheme::Percentage);
+    let percentage = convert_grade(
+        german_grade,
+        GradingScheme::German,
+        GradingScheme::Percentage,
+    );
     println!("   → Percentage: {:.1}%", percentage.unwrap_or(0.0));
 
     println!();
@@ -187,10 +202,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get grade by ID
     let queried = get_grade_by_id(&db, grade1.id).await?;
-    println!("   Queried grade for {}: {:.2} ({})",
-        "Algorithms",
-        queried.grade,
-        queried.grading_scheme
+    println!(
+        "   Queried grade for {}: {:.2} ({})",
+        "Algorithms", queried.grade, queried.grading_scheme
     );
 
     // Get final grade for a course
@@ -224,14 +238,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Semester GPA
     println!("   Semester GPA ({}, GPA-counting only): ", semester.code);
-    let semester_gpa = calculate_semester_gpa(&db, semester.id, GradingScheme::German, false).await?;
+    let semester_gpa =
+        calculate_semester_gpa(&db, semester.id, GradingScheme::German, false).await?;
     println!("     GPA: {:.2}", semester_gpa.gpa);
     println!("     Courses: {}", semester_gpa.total_courses);
     println!("     ECTS: {}", semester_gpa.total_ects);
     println!();
 
     println!("   Semester GPA ({}, including all): ", semester.code);
-    let semester_gpa_all = calculate_semester_gpa(&db, semester.id, GradingScheme::German, true).await?;
+    let semester_gpa_all =
+        calculate_semester_gpa(&db, semester.id, GradingScheme::German, true).await?;
     println!("     GPA: {:.2}", semester_gpa_all.gpa);
     println!("     Courses: {}", semester_gpa_all.total_courses);
     println!("     ECTS: {}", semester_gpa_all.total_ects);
@@ -324,7 +340,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .as_final(false)
         .record(&db)
         .await?;
-    println!("     Grade: {} (Pass)", if pf_grade.grade >= 1.0 { "Pass" } else { "Fail" });
+    println!(
+        "     Grade: {} (Pass)",
+        if pf_grade.grade >= 1.0 {
+            "Pass"
+        } else {
+            "Fail"
+        }
+    );
     println!();
 
     // ================================================================================
@@ -333,9 +356,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== Summary ===");
     println!("Recorded {} grades across {} courses:", 7, 5);
-    println!("  - Algorithms: {:.2} (German) - with components", grade1.grade);
+    println!(
+        "  - Algorithms: {:.2} (German) - with components",
+        grade1.grade
+    );
     println!("  - Database Systems: {:.1} (German)", grade2.grade);
-    println!("  - Computer Networks: {:.2} (US GPA) - with components", grade3.grade);
+    println!(
+        "  - Computer Networks: {:.2} (US GPA) - with components",
+        grade3.grade
+    );
     println!("  - Physics I: {:.1} (German, attempt 2)", attempt2.grade);
     println!("  - Test Course: Multiple schemes demonstrated");
     println!();

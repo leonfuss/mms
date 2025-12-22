@@ -6,6 +6,7 @@ use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };
+use std::str::FromStr;
 
 /// Complete grade information including components
 #[derive(Debug, Clone)]
@@ -174,7 +175,7 @@ pub async fn get_grade_by_id(db: &DatabaseConnection, grade_id: i64) -> Result<G
         original_grade: grade.original_grade,
         original_scheme: grade
             .original_scheme
-            .and_then(|s| GradingScheme::from_str(&s)),
+            .and_then(|s| GradingScheme::from_str(&s).ok()),
         is_final: grade.is_final,
         passed: grade.passed,
         attempt_number: grade.attempt_number,

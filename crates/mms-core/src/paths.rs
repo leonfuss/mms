@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use std::fs;
 use crate::error::{MmsError, Result};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Get the default config path: ~/.config/mms/config.toml
 pub fn default_config_path() -> Result<PathBuf> {
@@ -25,15 +25,14 @@ pub fn database_path() -> Result<PathBuf> {
 }
 
 /// Expand tilde in paths
-pub fn expand_path(path: &PathBuf) -> PathBuf {
-    if let Some(path_str) = path.to_str() {
-        if path_str.starts_with("~/") {
-            if let Some(home) = dirs::home_dir() {
-                return home.join(&path_str[2..]);
-            }
-        }
+pub fn expand_path(path: &Path) -> PathBuf {
+    if let Some(path_str) = path.to_str()
+        && path_str.starts_with("~/")
+        && let Some(home) = dirs::home_dir()
+    {
+        return home.join(&path_str[2..]);
     }
-    path.clone()
+    path.to_path_buf()
 }
 
 /// Get the directory path for a course
@@ -57,13 +56,13 @@ mod tests {
     fn test_expand_path() {
         let path = PathBuf::from("~/test");
         let expanded = expand_path(&path);
-        
+
         // Should not contain tilde if home dir is resolved
         if dirs::home_dir().is_some() {
             assert!(!expanded.to_str().unwrap().starts_with("~"));
         }
     }
-    
+
     #[test]
     fn test_get_course_directory() {
         let base = PathBuf::from("/tmp/uni");

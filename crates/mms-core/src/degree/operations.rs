@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::db::entities::{course_degree_mappings, courses, degree_areas, degrees};
 use crate::degree::builder::AreaDefinition;
 use crate::degree::types::DegreeType;
@@ -7,7 +9,6 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
     QueryOrder,
 };
-use std::collections::HashMap;
 
 /// Information about a degree program (returned after creation)
 #[derive(Debug, Clone)]
@@ -279,7 +280,10 @@ pub async fn get_degree_by_id(db: &DatabaseConnection, degree_id: i64) -> Result
 }
 
 /// List all degrees
-pub async fn list_degrees(db: &DatabaseConnection, include_inactive: bool) -> Result<Vec<DegreeInfo>> {
+pub async fn list_degrees(
+    db: &DatabaseConnection,
+    include_inactive: bool,
+) -> Result<Vec<DegreeInfo>> {
     let mut query = degrees::Entity::find();
 
     if !include_inactive {
@@ -385,9 +389,7 @@ pub async fn update_degree_area(
 
 /// Delete a degree area
 pub async fn delete_degree_area(db: &DatabaseConnection, area_id: i64) -> Result<()> {
-    let result = degree_areas::Entity::delete_by_id(area_id)
-        .exec(db)
-        .await?;
+    let result = degree_areas::Entity::delete_by_id(area_id).exec(db).await?;
 
     if result.rows_affected == 0 {
         return Err(MmsError::NotFound(format!(
@@ -481,17 +483,16 @@ pub async fn get_degree_progress(
         counts_towards_gpa: bool,
     }
 
-    let progress_data: Vec<ViewProgress> = ViewProgress::find_by_statement(
-        sea_orm::Statement::from_sql_and_values(
+    let progress_data: Vec<ViewProgress> =
+        ViewProgress::find_by_statement(sea_orm::Statement::from_sql_and_values(
             db.get_database_backend(),
             r#"SELECT category_name, required_ects, earned_ects, area_gpa, counts_towards_gpa
                FROM v_degree_progress
                WHERE degree_id = ?"#,
             vec![degree_id.into()],
-        ),
-    )
-    .all(db)
-    .await?;
+        ))
+        .all(db)
+        .await?;
 
     let mut area_progress = Vec::new();
     let mut total_earned = 0;
@@ -501,11 +502,11 @@ pub async fn get_degree_progress(
     for area in progress_data {
         total_earned += area.earned_ects as i32;
 
-        if area.counts_towards_gpa {
-            if let Some(gpa) = area.area_gpa {
-                weighted_gpa_sum += gpa * area.earned_ects as f64;
-                gpa_ects += area.earned_ects as i32;
-            }
+        if area.counts_towards_gpa
+            && let Some(gpa) = area.area_gpa
+        {
+            weighted_gpa_sum += gpa * area.earned_ects as f64;
+            gpa_ects += area.earned_ects as i32;
         }
 
         area_progress.push(AreaProgress {
@@ -542,8 +543,8 @@ pub async fn get_unmapped_courses(db: &DatabaseConnection) -> Result<Vec<i64>> {
         id: i64,
     }
 
-    let unmapped: Vec<UnmappedCourse> = UnmappedCourse::find_by_statement(
-        sea_orm::Statement::from_sql_and_values(
+    let unmapped: Vec<UnmappedCourse> =
+        UnmappedCourse::find_by_statement(sea_orm::Statement::from_sql_and_values(
             db.get_database_backend(),
             r#"SELECT c.id
                FROM courses c
@@ -552,10 +553,9 @@ pub async fn get_unmapped_courses(db: &DatabaseConnection) -> Result<Vec<i64>> {
                  AND c.is_dropped = 0
                  AND cdm.id IS NULL"#,
             vec![],
-        ),
-    )
-    .all(db)
-    .await?;
+        ))
+        .all(db)
+        .await?;
 
     Ok(unmapped.into_iter().map(|c| c.id).collect())
 }

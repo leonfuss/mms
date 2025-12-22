@@ -1,20 +1,20 @@
-use mms_core::config::Config;
-use mms_core::paths;
 use anyhow::Result;
 use colored::Colorize;
+use mms_core::config::Config;
+use mms_core::paths;
 
 pub fn handle_init() -> Result<()> {
     if Config::exists() {
         println!("{}", "Config file already exists.".yellow());
         println!("Location: {}", paths::default_config_path()?.display());
-        return Ok(())
+        return Ok(());
     }
 
     println!("{}", "Config file does not exist. Let's create it.".bold());
     println!();
 
     // Run setup wizard to interactively create config
-    let config = crate::cli::setup::ensure_config()?;
+    let _config = crate::cli::setup::ensure_config()?;
 
     println!();
     println!("Location: {}", paths::default_config_path()?.display());
@@ -29,18 +29,33 @@ pub fn handle_show() -> Result<()> {
     println!();
 
     println!("{}", "General:".bold());
-    println!("  University base path: {}", config.general.university_base_path.display());
+    println!(
+        "  University base path: {}",
+        config.general.university_base_path.display()
+    );
     println!("  Student Name:         {}", config.general.student_name);
     println!("  Student ID:           {}", config.general.student_id);
-    println!("  Default location:     {}", config.general.default_location);
-    println!("  Symlink path:         {}", config.general.symlink_path.display());
+    println!(
+        "  Default location:     {}",
+        config.general.default_location
+    );
+    println!(
+        "  Symlink path:         {}",
+        config.general.symlink_path.display()
+    );
     println!();
 
     println!("{}", "Schedule:".bold());
     println!("  Auto-switch:          {}", config.schedule.auto_switch);
-    println!("  Switch window:        {} minutes", config.schedule.switch_window_minutes);
+    println!(
+        "  Switch window:        {} minutes",
+        config.schedule.switch_window_minutes
+    );
     println!("  Notify:               {}", config.schedule.notify);
-    println!("  Check interval:       {} minutes", config.schedule.check_interval_minutes);
+    println!(
+        "  Check interval:       {} minutes",
+        config.schedule.check_interval_minutes
+    );
     println!();
 
     println!("{}", "Notes:".bold());
@@ -48,7 +63,10 @@ pub fn handle_show() -> Result<()> {
     println!("  Auto open PDF:        {}", config.notes.auto_open_pdf);
     println!();
 
-    println!("Config file: {}", paths::default_config_path()?.display().to_string().dimmed());
+    println!(
+        "Config file: {}",
+        paths::default_config_path()?.display().to_string().dimmed()
+    );
 
     Ok(())
 }

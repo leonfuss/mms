@@ -9,3 +9,4 @@ pub mod toml;
 pub mod semester;
 pub mod course;
 pub mod degree;
+pub mod grade;

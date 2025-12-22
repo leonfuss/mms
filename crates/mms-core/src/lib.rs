@@ -6,3 +6,5 @@ pub mod sync;
 pub mod error;
 pub mod paths;
 pub mod toml;
+pub mod semester;
+pub mod course;

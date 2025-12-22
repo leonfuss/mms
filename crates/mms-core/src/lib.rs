@@ -8,3 +8,4 @@ pub mod paths;
 pub mod toml;
 pub mod semester;
 pub mod course;
+pub mod degree;

@@ -2,6 +2,7 @@ pub mod builder;
 pub mod calculation;
 pub mod conversion;
 pub mod operations;
+pub mod rules;
 pub mod types;
 
 pub use builder::GradeBuilder;

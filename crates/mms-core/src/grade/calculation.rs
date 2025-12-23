@@ -1,7 +1,7 @@
 use super::conversion::calculate_weighted_average;
 use super::types::GradingScheme;
 use crate::error::Result;
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, FromQueryResult};
 use std::str::FromStr;
 
 /// GPA calculation result
@@ -42,6 +42,51 @@ pub struct DegreeAreaGPA {
     pub ects: i32,
 }
 
+/// Internal struct for query results
+#[derive(Debug, FromQueryResult)]
+struct GradeWithEcts {
+    grade: f64,
+    grading_scheme: String,
+    ects: i32,
+}
+
+/// Helper to calculate GPA from query results using functional patterns
+fn calculate_gpa_from_results(results: Vec<GradeWithEcts>, scheme: GradingScheme) -> GPAInfo {
+    if results.is_empty() {
+        return GPAInfo {
+            gpa: 0.0,
+            total_courses: 0,
+            total_ects: 0,
+            grading_scheme: scheme,
+        };
+    }
+
+    let (grade_ects_pairs, total_ects_vec): (Vec<(f64, f64)>, Vec<i32>) = results
+        .into_iter()
+        .map(|result| {
+            let grade_value = if result.grading_scheme == scheme.to_string() {
+                result.grade
+            } else {
+                let from_scheme = GradingScheme::from_str(&result.grading_scheme)
+                    .unwrap_or(GradingScheme::German);
+                super::conversion::convert_grade(result.grade, from_scheme, scheme)
+                    .unwrap_or(result.grade)
+            };
+            ((grade_value, result.ects as f64), result.ects)
+        })
+        .unzip();
+
+    let total_ects = total_ects_vec.iter().sum();
+    let gpa = calculate_weighted_average(&grade_ects_pairs).unwrap_or(0.0);
+
+    GPAInfo {
+        gpa,
+        total_courses: grade_ects_pairs.len(),
+        total_ects,
+        grading_scheme: scheme,
+    }
+}
+
 /// Calculate overall GPA across all courses with final grades
 ///
 /// This function:
@@ -60,15 +105,6 @@ pub async fn calculate_overall_gpa(
     scheme: GradingScheme,
     include_non_gpa: bool,
 ) -> Result<GPAInfo> {
-    use sea_orm::FromQueryResult;
-
-    #[derive(Debug, FromQueryResult)]
-    struct GradeWithEcts {
-        grade: f64,
-        grading_scheme: String,
-        ects: i32,
-    }
-
     let query = if include_non_gpa {
         // Include all grades regardless of degree area settings
         r#"
@@ -100,40 +136,7 @@ pub async fn calculate_overall_gpa(
     .all(db)
     .await?;
 
-    if results.is_empty() {
-        return Ok(GPAInfo {
-            gpa: 0.0,
-            total_courses: 0,
-            total_ects: 0,
-            grading_scheme: scheme,
-        });
-    }
-
-    let mut grade_ects_pairs = Vec::new();
-    let mut total_ects = 0;
-
-    for result in results {
-        let grade_value = if result.grading_scheme == scheme.to_string() {
-            result.grade
-        } else {
-            let from_scheme =
-                GradingScheme::from_str(&result.grading_scheme).unwrap_or(GradingScheme::German);
-            super::conversion::convert_grade(result.grade, from_scheme, scheme)
-                .unwrap_or(result.grade)
-        };
-
-        grade_ects_pairs.push((grade_value, result.ects as f64));
-        total_ects += result.ects;
-    }
-
-    let gpa = calculate_weighted_average(&grade_ects_pairs).unwrap_or(0.0);
-
-    Ok(GPAInfo {
-        gpa,
-        total_courses: grade_ects_pairs.len(),
-        total_ects,
-        grading_scheme: scheme,
-    })
+    Ok(calculate_gpa_from_results(results, scheme))
 }
 
 /// Calculate GPA for a specific semester
@@ -151,15 +154,6 @@ pub async fn calculate_semester_gpa(
     scheme: GradingScheme,
     include_non_gpa: bool,
 ) -> Result<GPAInfo> {
-    use sea_orm::FromQueryResult;
-
-    #[derive(Debug, FromQueryResult)]
-    struct GradeWithEcts {
-        grade: f64,
-        grading_scheme: String,
-        ects: i32,
-    }
-
     let query = if include_non_gpa {
         // Include all grades regardless of degree area settings
         r#"
@@ -193,40 +187,7 @@ pub async fn calculate_semester_gpa(
     .all(db)
     .await?;
 
-    if results.is_empty() {
-        return Ok(GPAInfo {
-            gpa: 0.0,
-            total_courses: 0,
-            total_ects: 0,
-            grading_scheme: scheme,
-        });
-    }
-
-    let mut grade_ects_pairs = Vec::new();
-    let mut total_ects = 0;
-
-    for result in results {
-        let grade_value = if result.grading_scheme == scheme.to_string() {
-            result.grade
-        } else {
-            let from_scheme =
-                GradingScheme::from_str(&result.grading_scheme).unwrap_or(GradingScheme::German);
-            super::conversion::convert_grade(result.grade, from_scheme, scheme)
-                .unwrap_or(result.grade)
-        };
-
-        grade_ects_pairs.push((grade_value, result.ects as f64));
-        total_ects += result.ects;
-    }
-
-    let gpa = calculate_weighted_average(&grade_ects_pairs).unwrap_or(0.0);
-
-    Ok(GPAInfo {
-        gpa,
-        total_courses: grade_ects_pairs.len(),
-        total_ects,
-        grading_scheme: scheme,
-    })
+    Ok(calculate_gpa_from_results(results, scheme))
 }
 
 /// Calculate GPA for a specific degree
@@ -248,16 +209,6 @@ pub async fn calculate_degree_gpa(
           AND da.counts_towards_gpa = 1
     "#;
 
-    // Use raw SQL for complex join
-    use sea_orm::FromQueryResult;
-
-    #[derive(Debug, FromQueryResult)]
-    struct GradeWithEcts {
-        grade: f64,
-        grading_scheme: String,
-        ects: i32,
-    }
-
     let results = GradeWithEcts::find_by_statement(sea_orm::Statement::from_sql_and_values(
         sea_orm::DatabaseBackend::Sqlite,
         query,
@@ -266,40 +217,7 @@ pub async fn calculate_degree_gpa(
     .all(db)
     .await?;
 
-    if results.is_empty() {
-        return Ok(GPAInfo {
-            gpa: 0.0,
-            total_courses: 0,
-            total_ects: 0,
-            grading_scheme: scheme,
-        });
-    }
-
-    let mut grade_ects_pairs = Vec::new();
-    let mut total_ects = 0;
-
-    for result in results {
-        let grade_value = if result.grading_scheme == scheme.to_string() {
-            result.grade
-        } else {
-            let from_scheme =
-                GradingScheme::from_str(&result.grading_scheme).unwrap_or(GradingScheme::German);
-            super::conversion::convert_grade(result.grade, from_scheme, scheme)
-                .unwrap_or(result.grade)
-        };
-
-        grade_ects_pairs.push((grade_value, result.ects as f64));
-        total_ects += result.ects;
-    }
-
-    let gpa = calculate_weighted_average(&grade_ects_pairs).unwrap_or(0.0);
-
-    Ok(GPAInfo {
-        gpa,
-        total_courses: grade_ects_pairs.len(),
-        total_ects,
-        grading_scheme: scheme,
-    })
+    Ok(calculate_gpa_from_results(results, scheme))
 }
 
 /// Calculate GPA for a specific degree area
@@ -318,15 +236,6 @@ pub async fn calculate_degree_area_gpa(
           AND g.passed = 1
     "#;
 
-    use sea_orm::FromQueryResult;
-
-    #[derive(Debug, FromQueryResult)]
-    struct GradeWithEcts {
-        grade: f64,
-        grading_scheme: String,
-        ects: i32,
-    }
-
     let results = GradeWithEcts::find_by_statement(sea_orm::Statement::from_sql_and_values(
         sea_orm::DatabaseBackend::Sqlite,
         query,
@@ -335,40 +244,7 @@ pub async fn calculate_degree_area_gpa(
     .all(db)
     .await?;
 
-    if results.is_empty() {
-        return Ok(GPAInfo {
-            gpa: 0.0,
-            total_courses: 0,
-            total_ects: 0,
-            grading_scheme: scheme,
-        });
-    }
-
-    let mut grade_ects_pairs = Vec::new();
-    let mut total_ects = 0;
-
-    for result in results {
-        let grade_value = if result.grading_scheme == scheme.to_string() {
-            result.grade
-        } else {
-            let from_scheme =
-                GradingScheme::from_str(&result.grading_scheme).unwrap_or(GradingScheme::German);
-            super::conversion::convert_grade(result.grade, from_scheme, scheme)
-                .unwrap_or(result.grade)
-        };
-
-        grade_ects_pairs.push((grade_value, result.ects as f64));
-        total_ects += result.ects;
-    }
-
-    let gpa = calculate_weighted_average(&grade_ects_pairs).unwrap_or(0.0);
-
-    Ok(GPAInfo {
-        gpa,
-        total_courses: grade_ects_pairs.len(),
-        total_ects,
-        grading_scheme: scheme,
-    })
+    Ok(calculate_gpa_from_results(results, scheme))
 }
 
 /// Get comprehensive GPA statistics
@@ -418,5 +294,45 @@ mod tests {
         assert_eq!(info.gpa, 2.3);
         assert_eq!(info.total_courses, 10);
         assert_eq!(info.total_ects, 60);
+    }
+
+    #[test]
+    fn test_calculate_gpa_from_results() {
+        // Case 1: Empty results
+        let info = calculate_gpa_from_results(vec![], GradingScheme::German);
+        assert_eq!(info.gpa, 0.0);
+        assert_eq!(info.total_courses, 0);
+        assert_eq!(info.total_ects, 0);
+
+        // Case 2: Single result, same scheme
+        let results = vec![GradeWithEcts {
+            grade: 1.0,
+            grading_scheme: "german".to_string(),
+            ects: 5,
+        }];
+        let info = calculate_gpa_from_results(results, GradingScheme::German);
+        assert_eq!(info.gpa, 1.0);
+        assert_eq!(info.total_courses, 1);
+        assert_eq!(info.total_ects, 5);
+
+        // Case 3: Multiple results, mixed schemes
+        let results = vec![
+            GradeWithEcts {
+                grade: 1.0,
+                grading_scheme: "german".to_string(),
+                ects: 5,
+            },
+            GradeWithEcts {
+                grade: 4.0, // A in US is 4.0
+                grading_scheme: "us".to_string(),
+                ects: 5,
+            },
+        ];
+        // Convert US 4.0 to German -> approx 1.0
+        // Weighted average of 1.0 (5 ECTS) and ~1.0 (5 ECTS) should be ~1.0
+        let info = calculate_gpa_from_results(results, GradingScheme::German);
+        assert!((info.gpa - 1.0).abs() < 0.1);
+        assert_eq!(info.total_courses, 2);
+        assert_eq!(info.total_ects, 10);
     }
 }

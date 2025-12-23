@@ -34,6 +34,18 @@ impl SyncStatus {
 }
 
 /// Scan the filesystem for semester folders
+///
+/// This function iterates over the directory entries in the configured university base path.
+/// It filters for directories, attempts to parse their names as semester folders,
+/// and returns a list of `DiskSemester` structs.
+///
+/// # Preconditions
+/// - `config.general.university_base_path` must be a valid path.
+///
+/// # Postconditions
+/// - Returns a `Result` containing a `Vec<DiskSemester>`.
+/// - If the base path does not exist, returns an empty vector.
+/// - Only directories are included.
 pub fn scan_disk_semesters(config: &Config) -> Result<Vec<DiskSemester>> {
     let base_path = &config.general.university_base_path;
 
@@ -41,50 +53,44 @@ pub fn scan_disk_semesters(config: &Config) -> Result<Vec<DiskSemester>> {
         return Ok(Vec::new());
     }
 
-    let mut disk_semesters = Vec::new();
+    let disk_semesters = std::fs::read_dir(base_path)?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
 
-    for entry in std::fs::read_dir(base_path)? {
-        let entry = entry?;
-        let path = entry.path();
+            if !path.is_dir() {
+                return None;
+            }
 
-        if !path.is_dir() {
-            continue;
-        }
+            let folder_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|s| s.to_string())?;
 
-        let folder_name = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(|s| s.to_string());
-
-        if let Some(folder_name) = folder_name {
             let (parsed_type, parsed_number) = parse_semester_folder(&folder_name);
 
-            disk_semesters.push(DiskSemester {
+            Some(DiskSemester {
                 folder_name,
                 path,
                 parsed_type,
                 parsed_number,
-            });
-        }
-    }
+            })
+        })
+        .collect();
 
     Ok(disk_semesters)
 }
 
 /// Parse semester folder name like "m01" -> (Master, 1) or "b03" -> (Bachelor, 3)
 fn parse_semester_folder(folder_name: &str) -> (Option<SemesterType>, Option<i32>) {
-    if folder_name.len() < 3 {
+    // Contract: folder_name must have at least 2 chars to possibly be valid (e.g. "b1")
+    if folder_name.len() < 2 {
         return (None, None);
     }
 
-    let type_char = folder_name
-        .chars()
-        .next()
-        .unwrap()
-        .to_lowercase()
-        .next()
-        .unwrap();
-    let number_str = &folder_name[1..];
+    let mut chars = folder_name.chars();
+    let type_char = chars.next().unwrap_or_default().to_ascii_lowercase();
+    let number_str = chars.as_str();
 
     let semester_type = match type_char {
         'm' => Some(SemesterType::Master),

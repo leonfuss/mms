@@ -104,7 +104,7 @@ fn default_symlink_path() -> PathBuf {
 impl PartialConfig {
     /// Load partial config from default path
     pub fn load() -> Result<Self> {
-        let config_path = paths::default_config_path()?;
+        let config_path = paths::config_path()?;
         Self::load_from_path(&config_path)
     }
 
@@ -219,11 +219,11 @@ impl PartialConfig {
             MissingConfigFields::new() // This is a different kind of error, should be handled separately
         })?;
 
-        let notes = self.notes.ok_or_else(|| MissingConfigFields::new())?;
+        let notes = self.notes.ok_or_else(MissingConfigFields::new)?;
 
-        let schedule = self.schedule.ok_or_else(|| MissingConfigFields::new())?;
+        let schedule = self.schedule.ok_or_else(MissingConfigFields::new)?;
 
-        let sync = self.sync.ok_or_else(|| MissingConfigFields::new())?;
+        let sync = self.sync.ok_or_else(MissingConfigFields::new)?;
 
         Ok(Config {
             general,
@@ -250,7 +250,7 @@ impl Config {
 
     /// Save config to the default location
     pub fn save(&self) -> Result<()> {
-        let config_path = paths::default_config_path()?;
+        let config_path = paths::config_path()?;
         self.save_to_path(&config_path)
     }
 
@@ -269,11 +269,6 @@ impl Config {
             .map_err(|e| MmsError::Config(format!("Failed to write config file: {}", e)))?;
 
         Ok(())
-    }
-
-    /// Helper to get expanded university base path
-    pub fn university_base_path(&self) -> PathBuf {
-        paths::expand_path(&self.general.university_base_path)
     }
 }
 

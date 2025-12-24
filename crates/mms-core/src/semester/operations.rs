@@ -1,10 +1,11 @@
 use crate::config::Config;
 use crate::db::entities::semesters;
 use crate::error::{MmsError, Result};
-use crate::paths;
 use crate::toml::{SemesterToml, SemesterType};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+};
 use std::path::PathBuf;
 
 /// Information about a semester (returned after creation)
@@ -36,8 +37,7 @@ pub struct SemesterInfo {
 
 impl From<semesters::Model> for SemesterInfo {
     fn from(model: semesters::Model) -> Self {
-        let semester_type = SemesterType::from_str(&model.r#type)
-            .unwrap_or(SemesterType::Bachelor);
+        let semester_type = SemesterType::from_str(&model.r#type).unwrap_or(SemesterType::Bachelor);
 
         Self {
             id: model.id,
@@ -115,7 +115,7 @@ pub async fn create_semester(
     is_archived: bool,
 ) -> Result<SemesterInfo> {
     // Get base path from config
-    let base_path = paths::expand_path(&config.general.university_base_path);
+    let base_path = &config.general.university_base_path;
 
     // Generate semester code (e.g., "b3")
     let code = format!("{}{}", semester_type.prefix(), number);
@@ -210,13 +210,12 @@ pub async fn update_semester(
     // Update TOML file
     let semester_dir = PathBuf::from(&semester.directory_path);
     if semester_dir.exists() {
-        let mut toml = SemesterToml::read_from_directory(&semester_dir)
-            .unwrap_or_else(|_| {
-                // If TOML doesn't exist or can't be read, create new one
-                let sem_type = SemesterType::from_str(&semester.r#type)
-                    .unwrap_or(SemesterType::Bachelor);
-                SemesterToml::new(sem_type, semester.number as i32)
-            });
+        let mut toml = SemesterToml::read_from_directory(&semester_dir).unwrap_or_else(|_| {
+            // If TOML doesn't exist or can't be read, create new one
+            let sem_type =
+                SemesterType::from_str(&semester.r#type).unwrap_or(SemesterType::Bachelor);
+            SemesterToml::new(sem_type, semester.number as i32)
+        });
 
         // Apply updates
         if let Some(start) = &start_date {
@@ -309,10 +308,7 @@ pub async fn delete_semester(
 }
 
 /// Get a semester by its database ID
-pub async fn get_semester_by_id(
-    db: &DatabaseConnection,
-    semester_id: i64,
-) -> Result<SemesterInfo> {
+pub async fn get_semester_by_id(db: &DatabaseConnection, semester_id: i64) -> Result<SemesterInfo> {
     let semester = semesters::Entity::find_by_id(semester_id)
         .one(db)
         .await?
@@ -322,21 +318,26 @@ pub async fn get_semester_by_id(
 }
 
 /// Get a semester by its code (e.g., "b3", "m1")
-pub async fn get_semester_by_code(
-    db: &DatabaseConnection,
-    code: &str,
-) -> Result<SemesterInfo> {
+pub async fn get_semester_by_code(db: &DatabaseConnection, code: &str) -> Result<SemesterInfo> {
     // Parse code into type and number
-    let first_char = code.chars().next()
+    let first_char = code
+        .chars()
+        .next()
         .ok_or_else(|| MmsError::Parse("Invalid semester code".to_string()))?;
 
     let semester_type = match first_char {
         'b' | 'B' => "bachelor",
         'm' | 'M' => "master",
-        _ => return Err(MmsError::Parse(format!("Invalid semester type prefix: {}", first_char))),
+        _ => {
+            return Err(MmsError::Parse(format!(
+                "Invalid semester type prefix: {}",
+                first_char
+            )));
+        }
     };
 
-    let number: i64 = code[1..].parse()
+    let number: i64 = code[1..]
+        .parse()
         .map_err(|_| MmsError::Parse(format!("Invalid semester number in code: {}", code)))?;
 
     let semester = semesters::Entity::find()

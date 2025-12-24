@@ -2,71 +2,83 @@ use crate::error::{MmsError, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Get the default config path: ~/.config/mms/config.toml
-pub fn default_config_path() -> Result<PathBuf> {
+// === UTILITY ========================
+
+fn ensure_exists(path: &Path) -> Result<()> {
+    fs::create_dir_all(path)
+        .map_err(|e| MmsError::Config(format!("Failed to create data directory: {}", e)))
+}
+
+// ====================================
+
+// === CONFIG BASE DIRECTORIES ========
+
+/// Config directory base path
+fn config_dir_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir()
-        .ok_or_else(|| MmsError::Config("Could not determine config directory".to_string()))?;
-
-    Ok(config_dir.join("mms").join("config.toml"))
+        .ok_or_else(|| MmsError::Config("Could not determine config directory".to_string()))?
+        .join("mms");
+    ensure_exists(&config_dir)?;
+    Ok(config_dir)
 }
 
-/// Get the database path: ~/.local/share/mms/mms.db
-pub fn database_path() -> Result<PathBuf> {
+/// Data directory base path
+fn data_dir_path() -> Result<PathBuf> {
     let data_dir = dirs::data_local_dir()
-        .ok_or_else(|| MmsError::Config("Could not determine data directory".to_string()))?;
-
-    let db_dir = data_dir.join("mms");
-
-    // Ensure directory exists
-    fs::create_dir_all(&db_dir)
-        .map_err(|e| MmsError::Config(format!("Failed to create data directory: {}", e)))?;
-
-    Ok(db_dir.join("mms.db"))
+        .ok_or_else(|| MmsError::Config("Could not determine data directory".to_string()))?
+        .join("mms");
+    ensure_exists(&data_dir)?;
+    Ok(data_dir)
 }
 
-/// Expand tilde in paths
-pub fn expand_path(path: &Path) -> PathBuf {
-    if let Some(path_str) = path.to_str()
-        && path_str.starts_with("~/")
-        && let Some(home) = dirs::home_dir()
-    {
-        return home.join(&path_str[2..]);
-    }
-    path.to_path_buf()
+// ====================================
+
+// === FILE PATHS =====================
+
+/// Returns path to the config.toml file. File may not exist.
+pub fn config_path() -> Result<PathBuf> {
+    config_dir_path().map(|it| it.join("config.toml"))
+}
+
+/// Returns path to the database type (mms.db). File may not exist.
+pub fn database_path() -> Result<PathBuf> {
+    data_dir_path().map(|it| it.join("mms.db"))
 }
 
 /// Get the directory path for a course
-pub fn get_course_directory(
-    base_path: &PathBuf,
+/// Precondition: `base_path` must be canonicalized.
+pub fn course_directory(
+    base_path: &Path,
     semester_type_initial: char,
     semester_number: i32,
     course_short_name: &str,
 ) -> PathBuf {
-    let expanded_base = expand_path(base_path);
-    expanded_base
+    assert!(base_path.is_absolute(), "Paths must be canonicalized!");
+    base_path
         .join(format!("{}{:02}", semester_type_initial, semester_number))
         .join(course_short_name)
 }
+
+// ====================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_expand_path() {
-        let path = PathBuf::from("~/test");
-        let expanded = expand_path(&path);
-
-        // Should not contain tilde if home dir is resolved
-        if dirs::home_dir().is_some() {
-            assert!(!expanded.to_str().unwrap().starts_with("~"));
-        }
+    #[should_panic(expected = "Paths must be canonicalized!")]
+    fn test_course_directory_precondtion() {
+        let base = PathBuf::from("uni");
+        let _ = course_directory(&base, 'm', 5, "ml");
     }
 
     #[test]
-    fn test_get_course_directory() {
+    fn test_course_directory() {
         let base = PathBuf::from("/tmp/uni");
-        let path = get_course_directory(&base, 'm', 5, "ml");
+        let path = course_directory(&base, 'm', 5, "ml");
         assert_eq!(path, PathBuf::from("/tmp/uni/m05/ml"));
+
+        let path = course_directory(&base, 'b', 2, "algo");
+        assert_eq!(path, PathBuf::from("/tmp/uni/b02/algo"));
     }
 }

@@ -74,12 +74,12 @@ pub fn remove_course_symlink() -> Result<()> {
 
 /// Get the path where the semester symlink should be created
 fn get_semester_symlink_path(config: &Config) -> PathBuf {
-    config.general.symlink_path.join("cs").into()
+    config.general.symlink_path.join("cs")
 }
 
 /// Get the path where the course symlink should be created
 fn get_course_symlink_path(config: &Config) -> PathBuf {
-    config.general.symlink_path.join("cc").into()
+    config.general.symlink_path.join("cc")
 }
 
 /// Check if symlinks are correctly set up

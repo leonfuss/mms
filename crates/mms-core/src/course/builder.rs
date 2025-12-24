@@ -1,5 +1,4 @@
-use crate::config::Config;
-use crate::course::operations::{create_course, CourseInfo};
+use crate::course::operations::{CourseInfo, create_course};
 use crate::error::Result;
 use sea_orm::DatabaseConnection;
 
@@ -145,15 +144,15 @@ impl CourseBuilder {
     /// 5. Create the database entry
     ///
     /// Returns the created course info
-    pub async fn create(self, config: &Config, db: &DatabaseConnection) -> Result<CourseInfo> {
+    pub async fn create(self, db: &DatabaseConnection) -> Result<CourseInfo> {
         let semester_id = self.semester_id.ok_or_else(|| {
             crate::error::MmsError::Other(
-                "Semester ID is required. Use .in_semester(id) before calling .create()".to_string(),
+                "Semester ID is required. Use .in_semester(id) before calling .create()"
+                    .to_string(),
             )
         })?;
 
         create_course(
-            config,
             db,
             semester_id,
             self.short_name,

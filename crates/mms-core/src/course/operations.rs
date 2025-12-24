@@ -1,4 +1,3 @@
-use crate::config::Config;
 use crate::db::entities::{courses, semesters};
 use crate::error::{MmsError, Result};
 use crate::toml::CourseToml;
@@ -113,9 +112,7 @@ impl From<courses::Model> for CourseInfo {
 /// # Ok(())
 /// # }
 /// ```
-#[allow(clippy::too_many_arguments)]
 pub async fn create_course(
-    config: &Config,
     db: &DatabaseConnection,
     semester_id: i64,
     short_name: String,

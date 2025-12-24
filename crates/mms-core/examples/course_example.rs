@@ -8,7 +8,6 @@
 /// 5. Delete courses
 ///
 /// Run with: cargo run --example course_example
-
 use mms_core::config::Config;
 use mms_core::course::{CourseBuilder, get_course_by_short_name, list_courses, update_course};
 use mms_core::db::connection_seaorm;
@@ -37,7 +36,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .create(&config, &db)
         .await?;
 
-    println!("   ✓ Created semester: {} (ID: {})", semester.code, semester.id);
+    println!(
+        "   ✓ Created semester: {} (ID: {})",
+        semester.code, semester.id
+    );
     println!("   ✓ Directory: {:?}\n", semester.directory_path);
 
     // ================================================================================
@@ -75,7 +77,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .create(&config, &db)
         .await?;
 
-    println!("   ✓ Created course: {} - {}", course2.short_name, course2.name);
+    println!(
+        "   ✓ Created course: {} - {}",
+        course2.short_name, course2.name
+    );
     println!("     ECTS: {}", course2.ects);
     println!();
 
@@ -99,18 +104,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query by short name
     let queried = get_course_by_short_name(&db, semester.id, "cs101").await?;
-    println!("   Found course by short name: {} - {}", queried.short_name, queried.name);
+    println!(
+        "   Found course by short name: {} - {}",
+        queried.short_name, queried.name
+    );
     println!("   Tutor: {:?}", queried.tutor);
     println!();
 
     // List all courses in semester
     let all_courses = list_courses(&db, Some(semester.id), false, false).await?;
-    println!("   Total courses in semester {}: {}", semester.code, all_courses.len());
+    println!(
+        "   Total courses in semester {}: {}",
+        semester.code,
+        all_courses.len()
+    );
     for course in &all_courses {
-        println!("     - {} ({} ECTS) - {}",
-            course.short_name,
-            course.ects,
-            course.name
+        println!(
+            "     - {} ({} ECTS) - {}",
+            course.short_name, course.ects, course.name
         );
     }
     println!();
@@ -125,14 +136,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &db,
         course1.id,
         Some("Advanced Algorithms".to_string()), // New name
-        Some(10), // Updated ECTS
-        None, // Keep lecturer
-        None, // Keep lecturer email
-        Some("Thomas Weber".to_string()), // New tutor
-        Some("thomas@tum.de".to_string()), // New tutor email
+        Some(10),                                // Updated ECTS
+        None,                                    // Keep lecturer
+        None,                                    // Keep lecturer email
+        Some("Thomas Weber".to_string()),        // New tutor
+        Some("thomas@tum.de".to_string()),       // New tutor email
         Some("https://moodle.tum.de/course/67890".to_string()), // Updated URL
-        None, // Keep university
-        None, // Keep location
+        None,                                    // Keep university
+        None,                                    // Keep location
     )
     .await?;
 
@@ -141,7 +152,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("     New ECTS: {}", updated.ects);
     println!("     New tutor: {:?}", updated.tutor);
     println!("     New tutor email: {:?}", updated.tutor_email);
-    println!("     Updated platform URL: {:?}", updated.learning_platform_url);
+    println!(
+        "     Updated platform URL: {:?}",
+        updated.learning_platform_url
+    );
     println!();
 
     // ================================================================================
@@ -152,7 +166,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use mms_core::course::create_course;
 
     let course4 = create_course(
-        &config,
         &db,
         semester.id,
         "db101".to_string(),
@@ -172,7 +185,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
-    println!("   ✓ Created course: {} - {}", course4.short_name, course4.name);
+    println!(
+        "   ✓ Created course: {} - {}",
+        course4.short_name, course4.name
+    );
     println!();
 
     // ================================================================================
@@ -181,19 +197,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== Summary ===");
     println!("Created 1 semester and 4 courses:");
-    println!("\nSemester: {} ({:?})", semester.code, semester.directory_path);
+    println!(
+        "\nSemester: {} ({:?})",
+        semester.code, semester.directory_path
+    );
 
     let final_list = list_courses(&db, Some(semester.id), false, false).await?;
     println!("\nCourses:");
     for course in &final_list {
-        let external_marker = if course.is_external { " [EXTERNAL]" } else { "" };
+        let external_marker = if course.is_external {
+            " [EXTERNAL]"
+        } else {
+            ""
+        };
         let git_marker = if course.has_git_repo { " [GIT]" } else { "" };
-        println!("  {} - {} ({} ECTS){}{}",
-            course.short_name,
-            course.name,
-            course.ects,
-            external_marker,
-            git_marker
+        println!(
+            "  {} - {} ({} ECTS){}{}",
+            course.short_name, course.name, course.ects, external_marker, git_marker
         );
         println!("    Directory: {:?}", course.directory_path);
         if let Some(toml) = &course.toml_path {

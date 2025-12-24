@@ -54,17 +54,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create courses
     let algo = CourseBuilder::new("algo", "Algorithms", 8)
         .in_semester(semester.id)
-        .create(&config, &db)
+        .create(&db)
         .await?;
 
     let db_course = CourseBuilder::new("databases", "Database Systems", 6)
         .in_semester(semester.id)
-        .create(&config, &db)
+        .create(&db)
         .await?;
 
     let networks = CourseBuilder::new("networks", "Computer Networks", 6)
         .in_semester(semester.id)
-        .create(&config, &db)
+        .create(&db)
         .await?;
 
     println!("   ✓ Created degree, semester, and 3 courses\n");
@@ -276,7 +276,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create another course
     let physics = CourseBuilder::new("physics", "Physics I", 6)
         .in_semester(semester.id)
-        .create(&config, &db)
+        .create(&db)
         .await?;
 
     // First attempt - failed
@@ -310,7 +310,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let test_course = CourseBuilder::new("test", "Test Course", 3)
         .in_semester(semester.id)
-        .create(&config, &db)
+        .create(&db)
         .await?;
 
     // ECTS grading (A-F)

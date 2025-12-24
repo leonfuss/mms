@@ -92,9 +92,7 @@ impl Config {
     /// The returned `Config` is guaranteed to have a valid `university_base_path`.
     pub fn load_from_path(path: &PathBuf) -> Result<Self> {
         if !path.exists() {
-            return Err(MmsError::ConfigNotFound {
-                path: path.clone(),
-            });
+            return Err(MmsError::ConfigNotFound { path: path.clone() });
         }
 
         let content = fs::read_to_string(path)?;
@@ -147,11 +145,10 @@ impl Config {
             fs::create_dir_all(parent)?;
         }
 
-        let content =
-            toml::to_string_pretty(self).map_err(|e| MmsError::ConfigSerializeError {
-                path: path.clone(),
-                source: e,
-            })?;
+        let content = toml::to_string_pretty(self).map_err(|e| MmsError::ConfigSerializeError {
+            path: path.clone(),
+            source: e,
+        })?;
 
         fs::write(path, content)?;
 

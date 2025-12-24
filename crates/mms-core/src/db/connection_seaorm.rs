@@ -1,6 +1,6 @@
-use sea_orm::{Database, DatabaseConnection, DbErr};
-use crate::paths;
 use crate::db::migrations;
+use crate::paths;
+use sea_orm::{Database, DatabaseConnection, DbErr};
 
 pub async fn get_connection() -> Result<DatabaseConnection, DbErr> {
     let db_path = paths::database_path()

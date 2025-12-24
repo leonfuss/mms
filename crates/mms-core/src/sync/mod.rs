@@ -104,9 +104,12 @@ fn parse_semester_folder(folder_name: &str) -> (Option<SemesterType>, Option<i32
 }
 
 /// Check sync status between database and filesystem
-pub async fn check_status() -> Result<SyncStatus> { // Async
+pub async fn check_status() -> Result<SyncStatus> {
+    // Async
     let config = Config::load()?;
-    let conn = connection_seaorm::get_connection().await.map_err(MmsError::Database)?; // Async connection
+    let conn = connection_seaorm::get_connection()
+        .await
+        .map_err(MmsError::Database)?; // Async connection
 
     // Get all semesters from database
     let db_semesters = queries::semester::list(&conn).await?; // Async query
@@ -130,7 +133,7 @@ pub async fn check_status() -> Result<SyncStatus> { // Async
     let mut synced_semesters = Vec::new();
     // Iterating over keys of db_map is tricky while modifying it.
     // Let's iterate over a clone of keys or just check disk_set against db_map keys.
-    
+
     let db_folders: Vec<String> = db_map.keys().cloned().collect();
     for folder_name in db_folders {
         if disk_set.contains(&folder_name) {
@@ -161,15 +164,14 @@ pub async fn check_status() -> Result<SyncStatus> { // Async
 }
 
 /// Sync filesystem with database (create missing folders)
-pub async fn sync_to_filesystem(dry_run: bool) -> Result<Vec<String>> { // Async
+pub async fn sync_to_filesystem(dry_run: bool) -> Result<Vec<String>> {
+    // Async
     let config = Config::load()?;
     let status = check_status().await?; // Async await
     let mut actions = Vec::new();
 
     for semester in &status.semesters_in_db_only {
-        let semester_path = config
-            .university_base_path
-            .join(&semester.directory_path); // Use directory_path
+        let semester_path = config.university_base_path.join(&semester.directory_path); // Use directory_path
         let action = format!("Create folder: {}", semester_path.display());
         actions.push(action);
 

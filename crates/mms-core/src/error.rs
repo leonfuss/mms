@@ -92,6 +92,30 @@ pub enum MmsError {
     #[error("Invalid exam type: {0}")]
     InvalidExamType(String),
 
+    #[error("Failed to create semester directory at {path}: {source}")]
+    SemesterDirectoryCreation {
+        path: std::path::PathBuf,
+        source: std::io::Error,
+    },
+
+    #[error("Failed to delete semester directory at {path}: {source}")]
+    SemesterDirectoryDeletion {
+        path: std::path::PathBuf,
+        source: std::io::Error,
+    },
+
+    #[error("Invalid semester number: {number} (must be positive)")]
+    InvalidSemesterNumber { number: i64 },
+
+    #[error("Invalid semester date range: start '{start}' must be before end '{end}'")]
+    InvalidDateRange { start: String, end: String },
+
+    #[error("Semester code not found: {code}")]
+    SemesterCodeNotFound { code: String },
+
+    #[error("Invalid semester code format: {code}")]
+    InvalidSemesterCode { code: String },
+
     #[error("{0}")]
     Other(String),
 }

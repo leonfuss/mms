@@ -1,8 +1,8 @@
-pub mod semester;
 pub mod course;
+pub mod semester;
 
-pub use semester::{SemesterToml, SemesterType};
 pub use course::CourseToml;
+pub use semester::{SemesterToml, SemesterType};
 
 use crate::error::{MmsError, Result};
 use std::path::Path;
@@ -11,8 +11,13 @@ use std::path::Path;
 pub(crate) fn read_toml_file<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T> {
     let content = std::fs::read_to_string(path)?;
 
-    toml::from_str(&content)
-        .map_err(|e| MmsError::Parse(format!("Failed to parse TOML file {}: {}", path.display(), e)))
+    toml::from_str(&content).map_err(|e| {
+        MmsError::Parse(format!(
+            "Failed to parse TOML file {}: {}",
+            path.display(),
+            e
+        ))
+    })
 }
 
 /// Write a struct to a TOML file

@@ -9,9 +9,7 @@ pub fn update_semester_symlink(semester_folder_name: &str) -> Result<()> {
     let symlink_path = get_semester_symlink_path(&config)?;
 
     // Target path
-    let target_path = config
-        .university_base_path
-        .join(semester_folder_name);
+    let target_path = config.university_base_path.join(semester_folder_name);
 
     // Remove existing symlink if it exists
     if symlink_path.exists() || symlink_path.is_symlink() {
@@ -72,14 +70,18 @@ pub fn remove_course_symlink() -> Result<()> {
 
 /// Get the path where the semester symlink should be created
 fn get_semester_symlink_path(config: &Config) -> Result<PathBuf> {
-    config.general.as_ref()
+    config
+        .general
+        .as_ref()
         .map(|g| g.symlink_path.join("cs"))
         .ok_or(crate::error::MmsError::SymlinkNotSet)
 }
 
 /// Get the path where the course symlink should be created
 fn get_course_symlink_path(config: &Config) -> Result<PathBuf> {
-    config.general.as_ref()
+    config
+        .general
+        .as_ref()
         .map(|g| g.symlink_path.join("cc"))
         .ok_or(crate::error::MmsError::SymlinkNotSet)
 }

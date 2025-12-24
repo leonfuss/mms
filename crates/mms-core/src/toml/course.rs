@@ -1,6 +1,6 @@
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use crate::error::Result;
 
 /// Contents of a `.course.toml` file
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -219,18 +219,17 @@ mod tests {
         assert_eq!(course.tutor, Some("Anna Müller".to_string()));
         assert_eq!(course.university, Some("TUM".to_string()));
         assert_eq!(course.has_git_repo, true);
-        assert_eq!(course.git_remote_url, Some("https://github.com/user/cs101".to_string()));
+        assert_eq!(
+            course.git_remote_url,
+            Some("https://github.com/user/cs101".to_string())
+        );
     }
 
     #[test]
     fn test_serialize_deserialize() {
-        let course = CourseToml::new(
-            "math201".to_string(),
-            "Linear Algebra".to_string(),
-            6,
-        )
-        .with_lecturer("Prof. Wagner".to_string())
-        .with_university("TUM".to_string());
+        let course = CourseToml::new("math201".to_string(), "Linear Algebra".to_string(), 6)
+            .with_lecturer("Prof. Wagner".to_string())
+            .with_university("TUM".to_string());
 
         let toml_str = toml::to_string(&course).unwrap();
         let deserialized: CourseToml = toml::from_str(&toml_str).unwrap();
@@ -244,11 +243,7 @@ mod tests {
 
     #[test]
     fn test_toml_path() {
-        let course = CourseToml::new(
-            "cs101".to_string(),
-            "Intro to Algorithms".to_string(),
-            8,
-        );
+        let course = CourseToml::new("cs101".to_string(), "Intro to Algorithms".to_string(), 8);
 
         let semester_dir = PathBuf::from("/Users/test/Studies/b3");
         let expected_path = PathBuf::from("/Users/test/Studies/b3/cs101/.course.toml");

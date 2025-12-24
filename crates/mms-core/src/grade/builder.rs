@@ -1,5 +1,5 @@
 use super::conversion::calculate_weighted_average;
-use super::operations::{record_grade, GradeInfo};
+use super::operations::{GradeInfo, record_grade};
 use super::types::GradingScheme;
 use crate::error::Result;
 use sea_orm::DatabaseConnection;
@@ -146,11 +146,7 @@ impl GradeBuilder {
     }
 
     /// Add a bonus component
-    pub fn with_bonus<S: Into<String>>(
-        mut self,
-        name: S,
-        bonus_points: f64,
-    ) -> Self {
+    pub fn with_bonus<S: Into<String>>(mut self, name: S, bonus_points: f64) -> Self {
         self.components.push(ComponentDefinition {
             name: name.into(),
             weight: 0.0,
@@ -175,10 +171,10 @@ impl GradeBuilder {
             .iter()
             .filter_map(|c| {
                 // Try to use explicit grade first, then calculate from points
-                c.grade
-                    .map(|g| (g, c.weight))
-                    .or_else(|| {
-                        c.points_earned.zip(c.points_total).and_then(|(earned, total)| {
+                c.grade.map(|g| (g, c.weight)).or_else(|| {
+                    c.points_earned
+                        .zip(c.points_total)
+                        .and_then(|(earned, total)| {
                             if total > 0.0 {
                                 let percentage = (earned / total) * 100.0;
                                 Some((percentage, c.weight))
@@ -186,7 +182,7 @@ impl GradeBuilder {
                                 None
                             }
                         })
-                    })
+                })
             })
             .collect();
 
@@ -295,8 +291,7 @@ mod tests {
 
     #[test]
     fn test_builder_with_bonus() {
-        let builder = GradeBuilder::new(1, 1.7)
-            .with_bonus("Extra Credit", 5.0);
+        let builder = GradeBuilder::new(1, 1.7).with_bonus("Extra Credit", 5.0);
 
         assert_eq!(builder.components.len(), 1);
         assert_eq!(builder.components[0].is_bonus, true);

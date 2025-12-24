@@ -1,4 +1,4 @@
-use crate::degree::operations::{create_degree, DegreeInfo};
+use crate::degree::operations::{DegreeInfo, create_degree};
 use crate::degree::types::DegreeType;
 use crate::error::Result;
 use sea_orm::DatabaseConnection;
@@ -182,10 +182,7 @@ mod tests {
         assert_eq!(builder.degree_type, DegreeType::Master);
         assert_eq!(builder.total_ects_required, 120);
         assert_eq!(builder.start_date, Some("2021-10-01".to_string()));
-        assert_eq!(
-            builder.expected_end_date,
-            Some("2023-09-30".to_string())
-        );
+        assert_eq!(builder.expected_end_date, Some("2023-09-30".to_string()));
         assert_eq!(builder.is_active, true);
     }
 

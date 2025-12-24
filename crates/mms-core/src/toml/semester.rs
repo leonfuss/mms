@@ -1,6 +1,6 @@
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use crate::error::Result;
 
 /// Semester type (Bachelor or Master)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,13 +46,13 @@ pub struct SemesterToml {
     pub semester_type: SemesterType,
 
     /// Semester number (e.g., 1, 2, 3...)
-    pub number: i32,
+    pub number: i64,
 
-    /// Start date in ISO format (YYYY-MM-DD)
+    /// Start date in German format (DD.MM.YYYY, e.g., "15.01.2024" or "7.8.2003")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_date: Option<String>,
 
-    /// End date in ISO format (YYYY-MM-DD)
+    /// End date in German format (DD.MM.YYYY, e.g., "31.03.2025" or "7.8.2003")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_date: Option<String>,
 
@@ -75,7 +75,7 @@ pub struct SemesterToml {
 
 impl SemesterToml {
     /// Create a new semester TOML with required fields
-    pub fn new(semester_type: SemesterType, number: i32) -> Self {
+    pub fn new(semester_type: SemesterType, number: i64) -> Self {
         Self {
             semester_type,
             number,
@@ -169,8 +169,14 @@ mod tests {
 
     #[test]
     fn test_semester_type_from_str() {
-        assert_eq!(SemesterType::from_str("bachelor"), Some(SemesterType::Bachelor));
-        assert_eq!(SemesterType::from_str("Bachelor"), Some(SemesterType::Bachelor));
+        assert_eq!(
+            SemesterType::from_str("bachelor"),
+            Some(SemesterType::Bachelor)
+        );
+        assert_eq!(
+            SemesterType::from_str("Bachelor"),
+            Some(SemesterType::Bachelor)
+        );
         assert_eq!(SemesterType::from_str("b"), Some(SemesterType::Bachelor));
         assert_eq!(SemesterType::from_str("master"), Some(SemesterType::Master));
         assert_eq!(SemesterType::from_str("m"), Some(SemesterType::Master));
@@ -199,8 +205,8 @@ mod tests {
         assert_eq!(sem.start_date, Some("2024-10-01".to_string()));
         assert_eq!(sem.end_date, Some("2025-03-31".to_string()));
         assert_eq!(sem.university, Some("TUM".to_string()));
-        assert_eq!(sem.is_current, true);
-        assert_eq!(sem.is_archived, false);
+        assert!(sem.is_current);
+        assert!(!sem.is_archived);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::error::Result;
-use crate::semester::operations::{create_semester, SemesterInfo};
+use crate::semester::operations::{SemesterInfo, create_semester};
 use crate::toml::SemesterType;
 use sea_orm::DatabaseConnection;
 
@@ -26,7 +26,7 @@ use sea_orm::DatabaseConnection;
 #[derive(Debug, Clone)]
 pub struct SemesterBuilder {
     semester_type: SemesterType,
-    number: i32,
+    number: i64,
     start_date: Option<String>,
     end_date: Option<String>,
     university: Option<String>,
@@ -41,7 +41,7 @@ impl SemesterBuilder {
     /// # Arguments
     /// * `semester_type` - Bachelor or Master
     /// * `number` - Semester number (e.g., 1, 2, 3...)
-    pub fn new(semester_type: SemesterType, number: i32) -> Self {
+    pub fn new(semester_type: SemesterType, number: i64) -> Self {
         Self {
             semester_type,
             number,
@@ -54,13 +54,13 @@ impl SemesterBuilder {
         }
     }
 
-    /// Set the start date (ISO format: YYYY-MM-DD)
+    /// Set the start date (German format: DD.MM.YYYY, e.g., "15.01.2024" or "7.8.2003")
     pub fn with_start_date<S: Into<String>>(mut self, date: S) -> Self {
         self.start_date = Some(date.into());
         self
     }
 
-    /// Set the end date (ISO format: YYYY-MM-DD)
+    /// Set the end date (German format: DD.MM.YYYY, e.g., "31.12.2024" or "7.8.2003")
     pub fn with_end_date<S: Into<String>>(mut self, date: S) -> Self {
         self.end_date = Some(date.into());
         self
@@ -98,11 +98,7 @@ impl SemesterBuilder {
     /// 3. Create the database entry
     ///
     /// Returns the created semester info
-    pub async fn create(
-        self,
-        config: &Config,
-        db: &DatabaseConnection,
-    ) -> Result<SemesterInfo> {
+    pub async fn create(self, config: &Config, db: &DatabaseConnection) -> Result<SemesterInfo> {
         create_semester(
             config,
             db,
@@ -135,7 +131,7 @@ mod tests {
         assert_eq!(builder.number, 3);
         assert_eq!(builder.code(), "b3");
         assert_eq!(builder.start_date, None);
-        assert_eq!(builder.is_current, false);
+        assert!(!builder.is_current);
     }
 
     #[test]
@@ -149,18 +145,12 @@ mod tests {
         assert_eq!(builder.start_date, Some("2024-10-01".to_string()));
         assert_eq!(builder.end_date, Some("2025-03-31".to_string()));
         assert_eq!(builder.university, Some("TUM".to_string()));
-        assert_eq!(builder.is_current, true);
+        assert!(builder.is_current);
     }
 
     #[test]
     fn test_builder_code_generation() {
-        assert_eq!(
-            SemesterBuilder::new(SemesterType::Bachelor, 1).code(),
-            "b1"
-        );
-        assert_eq!(
-            SemesterBuilder::new(SemesterType::Master, 5).code(),
-            "m5"
-        );
+        assert_eq!(SemesterBuilder::new(SemesterType::Bachelor, 1).code(), "b1");
+        assert_eq!(SemesterBuilder::new(SemesterType::Master, 5).code(), "m5");
     }
 }

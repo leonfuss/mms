@@ -92,15 +92,16 @@ impl Config {
     /// The returned `Config` is guaranteed to have a valid `university_base_path`.
     pub fn load_from_path(path: &PathBuf) -> Result<Self> {
         if !path.exists() {
-            return Err(MmsError::NotFound(format!(
-                "Config file not found: {}",
-                path.display()
-            )));
+            return Err(MmsError::ConfigNotFound {
+                path: path.clone(),
+            });
         }
 
         let content = fs::read_to_string(path)?;
-        let config: Config = toml::from_str(&content)
-            .map_err(|e| MmsError::Parse(format!("Failed to parse config file: {}", e)))?;
+        let config: Config = toml::from_str(&content).map_err(|e| MmsError::ConfigParseError {
+            path: path.clone(),
+            source: e,
+        })?;
 
         // Enforce the invariant: university_base_path must be present and valid
         config.validate()?;
@@ -113,18 +114,16 @@ impl Config {
     /// invariant that a `Config` always has this required field with a valid parent directory.
     fn validate(&self) -> Result<()> {
         if self.university_base_path.as_os_str().is_empty() {
-            return Err(MmsError::BasePathInvalid(
-                "Missing required configuration field: university_base_path".to_string(),
-            ));
+            return Err(MmsError::UniversityBasePathMissing);
         }
 
         // Validate that the parent directory exists
         if let Some(parent) = self.university_base_path.parent() {
             if !parent.exists() {
-                return Err(MmsError::BasePathInvalid(format!(
-                    "Parent directory does not exist: {}",
-                    parent.display()
-                )));
+                return Err(MmsError::UniversityBasePathParentNotFound {
+                    path: self.university_base_path.clone(),
+                    parent: parent.to_path_buf(),
+                });
             }
         }
 
@@ -148,8 +147,11 @@ impl Config {
             fs::create_dir_all(parent)?;
         }
 
-        let content = toml::to_string_pretty(self)
-            .map_err(|e| MmsError::Parse(format!("Failed to serialize config: {}", e)))?;
+        let content =
+            toml::to_string_pretty(self).map_err(|e| MmsError::ConfigSerializeError {
+                path: path.clone(),
+                source: e,
+            })?;
 
         fs::write(path, content)?;
 
@@ -201,7 +203,7 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("Parent directory does not exist")
+                .contains("University base path parent directory does not exist")
         );
     }
 

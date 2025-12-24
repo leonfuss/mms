@@ -8,6 +8,30 @@ pub enum MmsError {
     #[error("Invalid base path: {0}")]
     BasePathInvalid(String),
 
+    #[error("Config file not found at path: {path}")]
+    ConfigNotFound { path: std::path::PathBuf },
+
+    #[error("Failed to parse config file at {path}: {source}")]
+    ConfigParseError {
+        path: std::path::PathBuf,
+        source: toml::de::Error,
+    },
+
+    #[error("Failed to serialize config to {path}: {source}")]
+    ConfigSerializeError {
+        path: std::path::PathBuf,
+        source: toml::ser::Error,
+    },
+
+    #[error("Missing required configuration field: university_base_path")]
+    UniversityBasePathMissing,
+
+    #[error("University base path parent directory does not exist: {parent} (from path: {path})")]
+    UniversityBasePathParentNotFound {
+        path: std::path::PathBuf,
+        parent: std::path::PathBuf,
+    },
+
     #[error("Could not determine config directory")]
     ConfigDirNotFound,
 

@@ -40,14 +40,14 @@ impl SyncStatus {
 /// and returns a list of `DiskSemester` structs.
 ///
 /// # Preconditions
-/// - `config.general.university_base_path` must be a valid path.
+/// - `config.university_base_path()` must return a valid path (validated on config load).
 ///
 /// # Postconditions
 /// - Returns a `Result` containing a `Vec<DiskSemester>`.
 /// - If the base path does not exist, returns an empty vector.
 /// - Only directories are included.
 pub fn scan_disk_semesters(config: &Config) -> Result<Vec<DiskSemester>> {
-    let base_path = &config.general.university_base_path;
+    let base_path = &config.university_base_path;
 
     if !base_path.exists() {
         return Ok(Vec::new());
@@ -168,7 +168,6 @@ pub async fn sync_to_filesystem(dry_run: bool) -> Result<Vec<String>> { // Async
 
     for semester in &status.semesters_in_db_only {
         let semester_path = config
-            .general
             .university_base_path
             .join(&semester.directory_path); // Use directory_path
         let action = format!("Create folder: {}", semester_path.display());

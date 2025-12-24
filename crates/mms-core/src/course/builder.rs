@@ -17,7 +17,7 @@ use sea_orm::DatabaseConnection;
 ///     .with_lecturer_email("schmidt@tum.de")
 ///     .with_tutor("Anna Müller")
 ///     .with_university("TUM")
-///     .create(config, db)
+///     .create(db)
 ///     .await?;
 /// # Ok(())
 /// # }

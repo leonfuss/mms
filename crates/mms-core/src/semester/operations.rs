@@ -28,7 +28,7 @@ pub struct SemesterInfo {
     /// University
     pub university: Option<String>,
     /// Location
-    pub location: String,
+    pub location: Option<String>,
     /// Whether this semester is current
     pub is_current: bool,
     /// Whether this semester is archived
@@ -114,8 +114,8 @@ pub async fn create_semester(
     is_current: bool,
     is_archived: bool,
 ) -> Result<SemesterInfo> {
-    // Get base path from config
-    let base_path = &config.general.university_base_path;
+    // Get base path from config (validated on load)
+    let base_path = &config.university_base_path;
 
     // Generate semester code (e.g., "b3")
     let code = format!("{}{}", semester_type.prefix(), number);
@@ -150,8 +150,11 @@ pub async fn create_semester(
 
     toml.write_to_directory(&semester_dir)?;
 
-    // Get location (use provided or config default)
-    let final_location = location.unwrap_or_else(|| config.general.default_location.clone());
+    // Get location: use provided, or config default if available, otherwise None
+    let final_location = location.or_else(|| {
+        config.general.as_ref()
+            .and_then(|g| g.default_location.clone())
+    });
 
     // Create database entry
     let active_model = semesters::ActiveModel {
@@ -253,7 +256,7 @@ pub async fn update_semester(
         active_model.university = ActiveValue::Set(Some(uni));
     }
     if let Some(loc) = location {
-        active_model.default_location = ActiveValue::Set(loc);
+        active_model.default_location = ActiveValue::Set(Some(loc));
     }
     if let Some(current) = is_current {
         active_model.is_current = ActiveValue::Set(current);

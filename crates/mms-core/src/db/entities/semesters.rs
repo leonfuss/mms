@@ -20,8 +20,8 @@ pub struct Model {
     pub start_date: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub end_date: Option<String>,
-    #[sea_orm(column_type = "Text")]
-    pub default_location: String,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub default_location: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub university: Option<String>,
     pub is_current: bool,

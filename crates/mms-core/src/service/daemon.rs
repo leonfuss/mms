@@ -13,7 +13,6 @@ use sea_orm::DatabaseConnection;
 
 /// Daemon that runs in the background and automatically switches courses
 pub struct Daemon {
-    config: Config,
     check_interval: Duration,
     pid_file: PathBuf,
 }
@@ -22,12 +21,14 @@ impl Daemon {
     /// Create a new daemon instance
     pub fn new() -> Result<Self> {
         let config = Config::load()?;
-        // Updated to use config.schedule.check_interval_minutes
-        let check_interval = Duration::from_secs(config.schedule.check_interval_minutes * 60);
+
+        // Get schedule config or return error
+        let schedule = config.schedule.as_ref().ok_or(MmsError::ScheduleNotSet)?;
+
+        let check_interval = Duration::from_secs(schedule.check_interval_minutes * 60);
         let pid_file = Self::get_pid_file_path()?;
 
         Ok(Self {
-            config,
             check_interval,
             pid_file,
         })
@@ -38,7 +39,7 @@ impl Daemon {
         // Check if another instance is already running
         if self.is_running()? {
             return Err(MmsError::Other(
-                "Daemon is already running. Use 'mms service stop' to stop it first.".to_string()
+                "Daemon is already running. Use 'mms service stop' to stop it first.".to_string(),
             ));
         }
 
@@ -46,8 +47,10 @@ impl Daemon {
         self.write_pid_file()?;
 
         println!("Starting MMS daemon...");
-        // Updated to use config.schedule
-        println!("Check interval: {} minutes", self.config.schedule.check_interval_minutes);
+        println!(
+            "Check interval: {} minutes",
+            self.check_interval.as_secs() / 60
+        );
         println!("PID file: {}", self.pid_file.display());
 
         // Set up signal handlers for graceful shutdown
@@ -57,7 +60,8 @@ impl Daemon {
         ctrlc::set_handler(move || {
             println!("\nReceived shutdown signal. Stopping daemon...");
             r.store(false, std::sync::atomic::Ordering::SeqCst);
-        }).map_err(|e| MmsError::Other(format!("Failed to set signal handler: {}", e)))?;
+        })
+        .map_err(|e| MmsError::Other(format!("Failed to set signal handler: {}", e)))?;
 
         // Main daemon loop
         while running.load(std::sync::atomic::Ordering::SeqCst) {
@@ -98,25 +102,31 @@ impl Daemon {
         eprintln!("[DEBUG] Current course_id: {:?}", current_course_id);
 
         // Determine what course should be active now
-        let should_be_active = ScheduleEngine::determine_active_course_now(&conn).await.map_err(|e| {
-            eprintln!("[DEBUG] Failed to determine active course: {}", e);
-            e
-        })?;
+        let should_be_active = ScheduleEngine::determine_active_course_now(&conn)
+            .await
+            .map_err(|e| {
+                eprintln!("[DEBUG] Failed to determine active course: {}", e);
+                e
+            })?;
 
         // Debug logging
-        eprintln!("[DEBUG] Current: {:?}, Should be: {:?}", current_course_id, should_be_active);
+        eprintln!(
+            "[DEBUG] Current: {:?}, Should be: {:?}",
+            current_course_id, should_be_active
+        );
 
         // Check if we need to switch
         if current_course_id != should_be_active {
             eprintln!("[DEBUG] Switching course...");
-            self.switch_course(&conn, current_course_id, should_be_active).await?;
+            self.switch_course(&conn, current_course_id, should_be_active)
+                .await?;
         }
 
         Ok(())
     }
 
     /// Switch to a different active course
-    async fn switch_course (
+    async fn switch_course(
         &self,
         conn: &DatabaseConnection,
         from: Option<i64>,
@@ -189,7 +199,8 @@ impl Daemon {
         }
 
         let pid_str = fs::read_to_string(&self.pid_file)?;
-        let pid: u32 = pid_str.trim()
+        let pid: u32 = pid_str
+            .trim()
             .parse()
             .map_err(|_| MmsError::Other("Invalid PID file".to_string()))?;
 
@@ -204,7 +215,8 @@ impl Daemon {
         }
 
         let pid_str = fs::read_to_string(&self.pid_file)?;
-        let pid: u32 = pid_str.trim()
+        let pid: u32 = pid_str
+            .trim()
             .parse()
             .map_err(|_| MmsError::Other("Invalid PID file".to_string()))?;
 
@@ -216,7 +228,7 @@ impl Daemon {
             if !Self::process_exists(pid) {
                 // Remove PID file
                 fs::remove_file(&self.pid_file)?;
-                return Ok(())
+                return Ok(());
             }
             std::thread::sleep(Duration::from_millis(100));
         }
@@ -231,7 +243,8 @@ impl Daemon {
         }
 
         let pid_str = fs::read_to_string(&self.pid_file)?;
-        let pid: u32 = pid_str.trim()
+        let pid: u32 = pid_str
+            .trim()
             .parse()
             .map_err(|_| MmsError::Other("Invalid PID file".to_string()))?;
 
@@ -269,8 +282,6 @@ impl Daemon {
     /// Check if a process with given PID exists
     #[cfg(unix)]
     fn process_exists(pid: u32) -> bool {
-        
-
         let output = std::process::Command::new("kill")
             .arg("-0")
             .arg(pid.to_string())

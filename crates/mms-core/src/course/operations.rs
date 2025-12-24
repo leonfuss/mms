@@ -89,7 +89,6 @@ impl From<courses::Model> for CourseInfo {
 ///
 /// # async fn example(config: &Config, db: &DatabaseConnection) -> mms_core::error::Result<()> {
 /// let course = create_course(
-///     config,
 ///     db,
 ///     1, // semester_id
 ///     "cs101".to_string(),

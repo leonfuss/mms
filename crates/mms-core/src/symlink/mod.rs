@@ -6,11 +6,10 @@ use std::path::PathBuf;
 /// Create or update the cs (current semester) symlink
 pub fn update_semester_symlink(semester_folder_name: &str) -> Result<()> {
     let config = Config::load()?;
-    let symlink_path = get_semester_symlink_path(&config);
+    let symlink_path = get_semester_symlink_path(&config)?;
 
     // Target path
     let target_path = config
-        .general
         .university_base_path
         .join(semester_folder_name);
 
@@ -28,11 +27,10 @@ pub fn update_semester_symlink(semester_folder_name: &str) -> Result<()> {
 /// Create or update the cc (current course) symlink
 pub fn update_course_symlink(semester_folder_name: &str, course_folder_name: &str) -> Result<()> {
     let config = Config::load()?;
-    let symlink_path = get_course_symlink_path(&config);
+    let symlink_path = get_course_symlink_path(&config)?;
 
     // Target path
     let target_path = config
-        .general
         .university_base_path
         .join(semester_folder_name)
         .join(course_folder_name);
@@ -51,7 +49,7 @@ pub fn update_course_symlink(semester_folder_name: &str, course_folder_name: &st
 /// Remove the cs (current semester) symlink
 pub fn remove_semester_symlink() -> Result<()> {
     let config = Config::load()?;
-    let symlink_path = get_semester_symlink_path(&config);
+    let symlink_path = get_semester_symlink_path(&config)?;
 
     if symlink_path.exists() || symlink_path.is_symlink() {
         std::fs::remove_file(&symlink_path)?;
@@ -63,7 +61,7 @@ pub fn remove_semester_symlink() -> Result<()> {
 /// Remove the cc (current course) symlink
 pub fn remove_course_symlink() -> Result<()> {
     let config = Config::load()?;
-    let symlink_path = get_course_symlink_path(&config);
+    let symlink_path = get_course_symlink_path(&config)?;
 
     if symlink_path.exists() || symlink_path.is_symlink() {
         std::fs::remove_file(&symlink_path)?;
@@ -73,21 +71,25 @@ pub fn remove_course_symlink() -> Result<()> {
 }
 
 /// Get the path where the semester symlink should be created
-fn get_semester_symlink_path(config: &Config) -> PathBuf {
-    config.general.symlink_path.join("cs")
+fn get_semester_symlink_path(config: &Config) -> Result<PathBuf> {
+    config.general.as_ref()
+        .map(|g| g.symlink_path.join("cs"))
+        .ok_or(crate::error::MmsError::SymlinkNotSet)
 }
 
 /// Get the path where the course symlink should be created
-fn get_course_symlink_path(config: &Config) -> PathBuf {
-    config.general.symlink_path.join("cc")
+fn get_course_symlink_path(config: &Config) -> Result<PathBuf> {
+    config.general.as_ref()
+        .map(|g| g.symlink_path.join("cc"))
+        .ok_or(crate::error::MmsError::SymlinkNotSet)
 }
 
 /// Check if symlinks are correctly set up
 pub fn check_symlinks() -> Result<(Option<PathBuf>, Option<PathBuf>)> {
     let config = Config::load()?;
 
-    let cs_path = get_semester_symlink_path(&config);
-    let cc_path = get_course_symlink_path(&config);
+    let cs_path = get_semester_symlink_path(&config)?;
+    let cc_path = get_course_symlink_path(&config)?;
 
     let cs_target = if cs_path.is_symlink() {
         Some(std::fs::read_link(&cs_path)?)

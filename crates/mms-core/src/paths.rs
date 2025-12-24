@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 // === UTILITY ========================
 
 fn ensure_exists(path: &Path) -> Result<()> {
-    fs::create_dir_all(path)
-        .map_err(|e| MmsError::Config(format!("Failed to create data directory: {}", e)))
+    fs::create_dir_all(path)?;
+    Ok(())
 }
 
 // ====================================
@@ -16,7 +16,7 @@ fn ensure_exists(path: &Path) -> Result<()> {
 /// Config directory base path
 fn config_dir_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir()
-        .ok_or_else(|| MmsError::Config("Could not determine config directory".to_string()))?
+        .ok_or(MmsError::ConfigDirNotFound)?
         .join("mms");
     ensure_exists(&config_dir)?;
     Ok(config_dir)
@@ -25,7 +25,7 @@ fn config_dir_path() -> Result<PathBuf> {
 /// Data directory base path
 fn data_dir_path() -> Result<PathBuf> {
     let data_dir = dirs::data_local_dir()
-        .ok_or_else(|| MmsError::Config("Could not determine data directory".to_string()))?
+        .ok_or(MmsError::DataDirNotFound)?
         .join("mms");
     ensure_exists(&data_dir)?;
     Ok(data_dir)

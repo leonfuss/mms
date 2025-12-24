@@ -174,19 +174,19 @@ impl GradeBuilder {
             .components
             .iter()
             .filter_map(|c| {
-                if let Some(grade) = c.grade {
-                    Some((grade, c.weight))
-                } else if let (Some(earned), Some(total)) = (c.points_earned, c.points_total) {
-                    if total > 0.0 {
-                        // Convert points to percentage, then to grade if needed
-                        let percentage = (earned / total) * 100.0;
-                        Some((percentage, c.weight))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+                // Try to use explicit grade first, then calculate from points
+                c.grade
+                    .map(|g| (g, c.weight))
+                    .or_else(|| {
+                        c.points_earned.zip(c.points_total).and_then(|(earned, total)| {
+                            if total > 0.0 {
+                                let percentage = (earned / total) * 100.0;
+                                Some((percentage, c.weight))
+                            } else {
+                                None
+                            }
+                        })
+                    })
             })
             .collect();
 

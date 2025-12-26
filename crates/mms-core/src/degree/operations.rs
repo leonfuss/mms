@@ -145,6 +145,7 @@ impl From<degree_areas::Model> for DegreeAreaInfo {
 /// # Ok(())
 /// # }
 /// ```
+#[allow(clippy::too_many_arguments)]
 pub async fn create_degree(
     db: &DatabaseConnection,
     degree_type: DegreeType,

@@ -1,4 +1,5 @@
 use crate::course::operations::{CourseInfo, create_course};
+use crate::course::types::{CourseCode, Ects};
 use crate::error::Result;
 use sea_orm::DatabaseConnection;
 
@@ -11,7 +12,7 @@ use sea_orm::DatabaseConnection;
 /// use sea_orm::DatabaseConnection;
 ///
 /// # async fn example(config: &Config, db: &DatabaseConnection) -> mms_core::error::Result<()> {
-/// let course = CourseBuilder::new("cs101", "Introduction to Algorithms", 8)
+/// let course = CourseBuilder::new("cs101", "Introduction to Algorithms", 8)?
 ///     .in_semester(1) // semester_id from database
 ///     .with_lecturer("Prof. Dr. Schmidt")
 ///     .with_lecturer_email("schmidt@tum.de")
@@ -24,9 +25,9 @@ use sea_orm::DatabaseConnection;
 /// ```
 #[derive(Debug, Clone)]
 pub struct CourseBuilder {
-    short_name: String,
+    short_name: CourseCode,
     name: String,
-    ects: i32,
+    ects: Ects,
     semester_id: Option<i64>,
     lecturer: Option<String>,
     lecturer_email: Option<String>,
@@ -44,17 +45,26 @@ pub struct CourseBuilder {
 impl CourseBuilder {
     /// Create a new course builder with required fields
     ///
+    /// Validates ECTS and course code format early to catch errors before creation
+    ///
     /// # Arguments
     /// * `short_name` - Course code (e.g., "cs101")
     /// * `name` - Full course name
-    /// * `ects` - ECTS credits
-    pub fn new<S1, S2>(short_name: S1, name: S2, ects: i32) -> Self
+    /// * `ects` - ECTS credits (must be 1-30)
+    ///
+    /// # Errors
+    /// Returns error if ECTS is out of range or course code format is invalid
+    pub fn new<S1, S2>(short_name: S1, name: S2, ects: i32) -> Result<Self>
     where
         S1: Into<String>,
         S2: Into<String>,
     {
-        Self {
-            short_name: short_name.into(),
+        // Construct typed values (validation happens in their constructors)
+        let short_name = CourseCode::new(short_name.into())?;
+        let ects = Ects::new(ects)?;
+
+        Ok(Self {
+            short_name,
             name: name.into(),
             ects,
             semester_id: None,
@@ -69,7 +79,7 @@ impl CourseBuilder {
             original_path: None,
             has_git_repo: false,
             git_remote_url: None,
-        }
+        })
     }
 
     /// Set the semester this course belongs to (required for creation)
@@ -180,17 +190,18 @@ mod tests {
 
     #[test]
     fn test_builder_basic() {
-        let builder = CourseBuilder::new("cs101", "Introduction to Algorithms", 8);
-        assert_eq!(builder.short_name, "cs101");
+        let builder = CourseBuilder::new("cs101", "Introduction to Algorithms", 8).unwrap();
+        assert_eq!(builder.short_name.as_str(), "cs101");
         assert_eq!(builder.name, "Introduction to Algorithms");
-        assert_eq!(builder.ects, 8);
+        assert_eq!(builder.ects.value(), 8);
         assert_eq!(builder.semester_id, None);
-        assert_eq!(builder.is_external, false);
+        assert!(!builder.is_external);
     }
 
     #[test]
     fn test_builder_with_details() {
         let builder = CourseBuilder::new("math201", "Linear Algebra", 6)
+            .unwrap()
             .in_semester(1)
             .with_lecturer("Prof. Wagner")
             .with_lecturer_email("wagner@tum.de")
@@ -203,7 +214,7 @@ mod tests {
         assert_eq!(builder.lecturer_email, Some("wagner@tum.de".to_string()));
         assert_eq!(builder.tutor, Some("Thomas Weber".to_string()));
         assert_eq!(builder.university, Some("TUM".to_string()));
-        assert_eq!(builder.has_git_repo, true);
+        assert!(builder.has_git_repo);
         assert_eq!(
             builder.git_remote_url,
             Some("https://github.com/user/math201".to_string())
@@ -213,10 +224,11 @@ mod tests {
     #[test]
     fn test_builder_external_course() {
         let builder = CourseBuilder::new("external101", "External Course", 5)
+            .unwrap()
             .in_semester(2)
             .as_external(Some("/old/path/to/course".to_string()));
 
-        assert_eq!(builder.is_external, true);
+        assert!(builder.is_external);
         assert_eq!(
             builder.original_path,
             Some("/old/path/to/course".to_string())

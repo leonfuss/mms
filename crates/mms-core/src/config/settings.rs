@@ -116,13 +116,13 @@ impl Config {
         }
 
         // Validate that the parent directory exists
-        if let Some(parent) = self.university_base_path.parent() {
-            if !parent.exists() {
-                return Err(MmsError::UniversityBasePathParentNotFound {
-                    path: self.university_base_path.clone(),
-                    parent: parent.to_path_buf(),
-                });
-            }
+        if let Some(parent) = self.university_base_path.parent()
+            && !parent.exists()
+        {
+            return Err(MmsError::UniversityBasePathParentNotFound {
+                path: self.university_base_path.clone(),
+                parent: parent.to_path_buf(),
+            });
         }
 
         Ok(())

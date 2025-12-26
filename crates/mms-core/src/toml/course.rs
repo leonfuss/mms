@@ -120,38 +120,38 @@ impl CourseToml {
 
     // Builder methods for convenient construction
 
-    pub fn with_lecturer(mut self, lecturer: String) -> Self {
-        self.lecturer = Some(lecturer);
+    pub fn with_lecturer(mut self, lecturer: impl Into<String>) -> Self {
+        self.lecturer = Some(lecturer.into());
         self
     }
 
-    pub fn with_lecturer_email(mut self, email: String) -> Self {
-        self.lecturer_email = Some(email);
+    pub fn with_lecturer_email(mut self, email: impl Into<String>) -> Self {
+        self.lecturer_email = Some(email.into());
         self
     }
 
-    pub fn with_tutor(mut self, tutor: String) -> Self {
-        self.tutor = Some(tutor);
+    pub fn with_tutor(mut self, tutor: impl Into<String>) -> Self {
+        self.tutor = Some(tutor.into());
         self
     }
 
-    pub fn with_tutor_email(mut self, email: String) -> Self {
-        self.tutor_email = Some(email);
+    pub fn with_tutor_email(mut self, email: impl Into<String>) -> Self {
+        self.tutor_email = Some(email.into());
         self
     }
 
-    pub fn with_learning_platform_url(mut self, url: String) -> Self {
-        self.learning_platform_url = Some(url);
+    pub fn with_learning_platform_url(mut self, url: impl Into<String>) -> Self {
+        self.learning_platform_url = Some(url.into());
         self
     }
 
-    pub fn with_university(mut self, university: String) -> Self {
-        self.university = Some(university);
+    pub fn with_university(mut self, university: impl Into<String>) -> Self {
+        self.university = Some(university.into());
         self
     }
 
-    pub fn with_location(mut self, location: String) -> Self {
-        self.location = Some(location);
+    pub fn with_location(mut self, location: impl Into<String>) -> Self {
+        self.location = Some(location.into());
         self
     }
 
@@ -160,8 +160,8 @@ impl CourseToml {
         self
     }
 
-    pub fn with_original_path(mut self, path: String) -> Self {
-        self.original_path = Some(path);
+    pub fn with_original_path(mut self, path: impl Into<String>) -> Self {
+        self.original_path = Some(path.into());
         self
     }
 
@@ -170,9 +170,9 @@ impl CourseToml {
         self
     }
 
-    pub fn with_git_repo(mut self, remote_url: String) -> Self {
+    pub fn with_git_repo(mut self, remote_url: impl Into<String>) -> Self {
         self.has_git_repo = true;
-        self.git_remote_url = Some(remote_url);
+        self.git_remote_url = Some(remote_url.into());
         self
     }
 

@@ -116,6 +116,24 @@ pub enum MmsError {
     #[error("Invalid semester code format: {code}")]
     InvalidSemesterCode { code: String },
 
+    #[error("Invalid ECTS value: {value} (must be 1-30)")]
+    InvalidEcts { value: i32 },
+
+    #[error("Invalid course code '{code}': {reason}")]
+    InvalidCourseCode { code: String, reason: String },
+
+    #[error("Failed to create course directory at {path}: {source}")]
+    CourseDirectoryCreation {
+        path: std::path::PathBuf,
+        source: std::io::Error,
+    },
+
+    #[error("Corrupted or missing .course.toml at {path}: {reason}")]
+    CorruptedCourseToml {
+        path: std::path::PathBuf,
+        reason: String,
+    },
+
     #[error("{0}")]
     Other(String),
 }

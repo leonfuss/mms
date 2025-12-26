@@ -2,12 +2,13 @@ use std::str::FromStr;
 
 use crate::db::entities::{course_degree_mappings, courses, degree_areas, degrees};
 use crate::degree::builder::AreaDefinition;
-use crate::degree::types::DegreeType;
+use crate::degree::types::{AreaEcts, DegreeEcts, DegreeType};
 use crate::error::{MmsError, Result};
+use crate::utils::date_validation::{validate_date_format, validate_date_range};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder,
+    QueryOrder, TransactionTrait,
 };
 
 /// Information about a degree program (returned after creation)
@@ -82,11 +83,14 @@ pub struct AreaProgress {
     pub area_gpa: Option<f64>,
 }
 
-impl From<degrees::Model> for DegreeInfo {
-    fn from(model: degrees::Model) -> Self {
-        let degree_type = DegreeType::from_str(&model.r#type).unwrap_or(DegreeType::Bachelor);
+impl TryFrom<degrees::Model> for DegreeInfo {
+    type Error = MmsError;
 
-        Self {
+    fn try_from(model: degrees::Model) -> Result<Self> {
+        let degree_type = DegreeType::from_str(&model.r#type)
+            .map_err(|_| MmsError::InvalidDegreeType(model.r#type.clone()))?;
+
+        Ok(Self {
             id: model.id,
             degree_type,
             name: model.name,
@@ -96,7 +100,7 @@ impl From<degrees::Model> for DegreeInfo {
             expected_end_date: model.expected_end_date,
             is_active: model.is_active,
             areas: Vec::new(), // Populated separately
-        }
+        })
     }
 }
 
@@ -157,7 +161,26 @@ pub async fn create_degree(
     is_active: bool,
     areas: Vec<AreaDefinition>,
 ) -> Result<DegreeInfo> {
-    // Create degree entry
+    // Validation (fail fast)
+    DegreeEcts::new(total_ects_required, degree_type)?;
+
+    if let Some(ref date) = start_date {
+        validate_date_format(date)?;
+    }
+    if let Some(ref date) = expected_end_date {
+        validate_date_format(date)?;
+    }
+    validate_date_range(&start_date, &expected_end_date)?;
+
+    // Validate all areas
+    for area in &areas {
+        AreaEcts::new(area.required_ects)?;
+    }
+
+    // BEGIN TRANSACTION (all-or-nothing)
+    let txn = db.begin().await?;
+
+    // Create degree entry (on transaction)
     let degree_model = degrees::ActiveModel {
         id: ActiveValue::NotSet,
         r#type: ActiveValue::Set(degree_type.to_string()),
@@ -171,9 +194,9 @@ pub async fn create_degree(
         updated_at: ActiveValue::Set(Utc::now()),
     };
 
-    let degree = degree_model.insert(db).await?;
+    let degree = degree_model.insert(&txn).await?;
 
-    // Create areas
+    // Create areas (on same transaction)
     let mut area_infos = Vec::new();
     for area in areas {
         let area_model = degree_areas::ActiveModel {
@@ -186,9 +209,12 @@ pub async fn create_degree(
             created_at: ActiveValue::Set(Utc::now()),
         };
 
-        let area_record = area_model.insert(db).await?;
+        let area_record = area_model.insert(&txn).await?;
         area_infos.push(DegreeAreaInfo::from(area_record));
     }
+
+    // COMMIT TRANSACTION (if we got here, everything succeeded)
+    txn.commit().await?;
 
     Ok(DegreeInfo {
         id: degree.id,
@@ -217,7 +243,28 @@ pub async fn update_degree(
     let degree = degrees::Entity::find_by_id(degree_id)
         .one(db)
         .await?
-        .ok_or_else(|| MmsError::NotFound(format!("Degree with ID {} not found", degree_id)))?;
+        .ok_or(MmsError::DegreeNotFound(degree_id))?;
+
+    // Validation (fail fast)
+    let degree_type = DegreeType::from_str(&degree.r#type)
+        .map_err(|_| MmsError::InvalidDegreeType(degree.r#type.clone()))?;
+
+    if let Some(ects) = total_ects_required {
+        DegreeEcts::new(ects, degree_type)?;
+    }
+    if let Some(ref date) = start_date {
+        validate_date_format(date)?;
+    }
+    if let Some(ref date) = expected_end_date {
+        validate_date_format(date)?;
+    }
+
+    // Validate date range with updated values
+    let new_start = start_date.as_ref().or(degree.start_date.as_ref());
+    let new_end = expected_end_date
+        .as_ref()
+        .or(degree.expected_end_date.as_ref());
+    validate_date_range(&new_start.cloned(), &new_end.cloned())?;
 
     // Update degree
     let mut active_model: degrees::ActiveModel = degree.into();
@@ -245,7 +292,7 @@ pub async fn update_degree(
     // Get areas
     let areas = get_degree_areas(db, degree_id).await?;
 
-    let mut info = DegreeInfo::from(updated);
+    let mut info = DegreeInfo::try_from(updated)?;
     info.areas = areas;
 
     Ok(info)
@@ -256,10 +303,7 @@ pub async fn delete_degree(db: &DatabaseConnection, degree_id: i64) -> Result<()
     let result = degrees::Entity::delete_by_id(degree_id).exec(db).await?;
 
     if result.rows_affected == 0 {
-        return Err(MmsError::NotFound(format!(
-            "Degree with ID {} not found",
-            degree_id
-        )));
+        return Err(MmsError::DegreeNotFound(degree_id));
     }
 
     Ok(())
@@ -270,11 +314,11 @@ pub async fn get_degree_by_id(db: &DatabaseConnection, degree_id: i64) -> Result
     let degree = degrees::Entity::find_by_id(degree_id)
         .one(db)
         .await?
-        .ok_or_else(|| MmsError::NotFound(format!("Degree with ID {} not found", degree_id)))?;
+        .ok_or(MmsError::DegreeNotFound(degree_id))?;
 
     let areas = get_degree_areas(db, degree_id).await?;
 
-    let mut info = DegreeInfo::from(degree);
+    let mut info = DegreeInfo::try_from(degree)?;
     info.areas = areas;
 
     Ok(info)
@@ -300,7 +344,7 @@ pub async fn list_degrees(
     let mut result = Vec::new();
     for degree in degrees_list {
         let areas = get_degree_areas(db, degree.id).await?;
-        let mut info = DegreeInfo::from(degree);
+        let mut info = DegreeInfo::try_from(degree)?;
         info.areas = areas;
         result.push(info);
     }
@@ -331,7 +375,7 @@ pub async fn add_degree_area(
     degrees::Entity::find_by_id(degree_id)
         .one(db)
         .await?
-        .ok_or_else(|| MmsError::NotFound(format!("Degree with ID {} not found", degree_id)))?;
+        .ok_or(MmsError::DegreeNotFound(degree_id))?;
 
     // Get next display order
     let existing_areas = degree_areas::Entity::find()
@@ -370,7 +414,7 @@ pub async fn update_degree_area(
     let area = degree_areas::Entity::find_by_id(area_id)
         .one(db)
         .await?
-        .ok_or_else(|| MmsError::NotFound(format!("Degree area with ID {} not found", area_id)))?;
+        .ok_or(MmsError::DegreeAreaNotFound(area_id))?;
 
     let mut active_model: degree_areas::ActiveModel = area.into();
 
@@ -419,12 +463,12 @@ pub async fn map_course_to_area(
     degrees::Entity::find_by_id(degree_id)
         .one(db)
         .await?
-        .ok_or_else(|| MmsError::NotFound(format!("Degree with ID {} not found", degree_id)))?;
+        .ok_or(MmsError::DegreeNotFound(degree_id))?;
 
     degree_areas::Entity::find_by_id(area_id)
         .one(db)
         .await?
-        .ok_or_else(|| MmsError::NotFound(format!("Degree area with ID {} not found", area_id)))?;
+        .ok_or(MmsError::DegreeAreaNotFound(area_id))?;
 
     // Create mapping
     let mapping = course_degree_mappings::ActiveModel {
@@ -559,4 +603,550 @@ pub async fn get_unmapped_courses(db: &DatabaseConnection) -> Result<Vec<i64>> {
         .await?;
 
     Ok(unmapped.into_iter().map(|c| c.id).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sea_orm::Database;
+
+    #[test]
+    fn test_date_validation_import() {
+        // Test that shared date validation is accessible
+        assert!(validate_date_format("01.10.2024").is_ok());
+        assert!(validate_date_format("99.99.2024").is_err());
+    }
+
+    // ========================================================================
+    // Integration Tests
+    // ========================================================================
+
+    /// Set up a test environment with in-memory database
+    async fn setup_test_db() -> Result<DatabaseConnection> {
+        let db = Database::connect("sqlite::memory:").await?;
+
+        // Run migrations
+        crate::db::migrations::run_migrations(&db).await?;
+
+        Ok(db)
+    }
+
+    #[tokio::test]
+    async fn test_integration_full_crud_lifecycle() {
+        let db = setup_test_db().await.unwrap();
+
+        // CREATE
+        let areas = vec![
+            AreaDefinition {
+                category_name: "Core CS".to_string(),
+                required_ects: 60,
+                counts_towards_gpa: true,
+                display_order: 0,
+            },
+            AreaDefinition {
+                category_name: "Electives".to_string(),
+                required_ects: 30,
+                counts_towards_gpa: true,
+                display_order: 1,
+            },
+        ];
+
+        let degree = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "Computer Science".to_string(),
+            "TUM".to_string(),
+            180,
+            Some("01.10.2024".to_string()),
+            Some("30.09.2028".to_string()),
+            true,
+            areas,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(degree.name, "Computer Science");
+        assert_eq!(degree.university, "TUM");
+        assert_eq!(degree.total_ects_required, 180);
+        assert_eq!(degree.degree_type, DegreeType::Bachelor);
+        assert_eq!(degree.areas.len(), 2);
+        assert_eq!(degree.areas[0].category_name, "Core CS");
+        assert_eq!(degree.areas[0].required_ects, 60);
+        assert_eq!(degree.areas[1].category_name, "Electives");
+        assert_eq!(degree.areas[1].required_ects, 30);
+
+        // READ
+        let retrieved = get_degree_by_id(&db, degree.id).await.unwrap();
+        assert_eq!(retrieved.id, degree.id);
+        assert_eq!(retrieved.name, "Computer Science");
+        assert_eq!(retrieved.areas.len(), 2);
+
+        // LIST
+        let all_degrees = list_degrees(&db, true).await.unwrap();
+        assert_eq!(all_degrees.len(), 1);
+
+        // UPDATE
+        let updated = update_degree(
+            &db,
+            degree.id,
+            Some("CS".to_string()),
+            Some(190),
+            None,
+            None,
+            Some(false),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updated.name, "CS");
+        assert_eq!(updated.total_ects_required, 190);
+        assert!(!updated.is_active);
+
+        // DELETE
+        delete_degree(&db, degree.id).await.unwrap();
+
+        let result = get_degree_by_id(&db, degree.id).await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), MmsError::DegreeNotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn test_invalid_bachelor_ects_rejected() {
+        let db = setup_test_db().await.unwrap();
+
+        let areas = vec![];
+
+        // Too low (Bachelor needs 90-240)
+        let result = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS".to_string(),
+            "TUM".to_string(),
+            50, // Invalid!
+            None,
+            None,
+            true,
+            areas.clone(),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            MmsError::InvalidDegreeEcts { .. }
+        ));
+
+        // Too high
+        let result = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS".to_string(),
+            "TUM".to_string(),
+            300, // Invalid!
+            None,
+            None,
+            true,
+            areas,
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            MmsError::InvalidDegreeEcts { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_invalid_master_ects_rejected() {
+        let db = setup_test_db().await.unwrap();
+
+        let areas = vec![];
+
+        // Too low (Master needs 60-120)
+        let result = create_degree(
+            &db,
+            DegreeType::Master,
+            "CS".to_string(),
+            "TUM".to_string(),
+            30, // Invalid!
+            None,
+            None,
+            true,
+            areas.clone(),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            MmsError::InvalidDegreeEcts { .. }
+        ));
+
+        // Too high
+        let result = create_degree(
+            &db,
+            DegreeType::Master,
+            "CS".to_string(),
+            "TUM".to_string(),
+            150, // Invalid!
+            None,
+            None,
+            true,
+            areas,
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            MmsError::InvalidDegreeEcts { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_phd_requires_zero_ects() {
+        let db = setup_test_db().await.unwrap();
+
+        let areas = vec![];
+
+        // PhD must have 0 ECTS
+        let result = create_degree(
+            &db,
+            DegreeType::PhD,
+            "Computer Science".to_string(),
+            "TUM".to_string(),
+            60, // Invalid - PhD requires 0!
+            None,
+            None,
+            true,
+            areas.clone(),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            MmsError::InvalidDegreeEcts { .. }
+        ));
+
+        // Valid PhD with 0 ECTS
+        let result = create_degree(
+            &db,
+            DegreeType::PhD,
+            "Computer Science".to_string(),
+            "TUM".to_string(),
+            0, // Valid!
+            None,
+            None,
+            true,
+            areas,
+        )
+        .await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_transaction_rollback_on_invalid_area() {
+        let db = setup_test_db().await.unwrap();
+
+        let areas = vec![
+            AreaDefinition {
+                category_name: "Core".to_string(),
+                required_ects: 60,
+                counts_towards_gpa: true,
+                display_order: 0,
+            },
+            AreaDefinition {
+                category_name: "Invalid".to_string(),
+                required_ects: -10, // Invalid! Area ECTS must be positive
+                counts_towards_gpa: true,
+                display_order: 1,
+            },
+        ];
+
+        let result = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS".to_string(),
+            "TUM".to_string(),
+            180,
+            None,
+            None,
+            true,
+            areas,
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), MmsError::InvalidAreaEcts(_)));
+
+        // Verify no degree was created (transaction rolled back)
+        let degrees = list_degrees(&db, true).await.unwrap();
+        assert_eq!(degrees.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_invalid_date_format_rejected() {
+        let db = setup_test_db().await.unwrap();
+
+        let areas = vec![];
+
+        // Invalid start date format
+        let result = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS".to_string(),
+            "TUM".to_string(),
+            180,
+            Some("2024-10-01".to_string()), // ISO format - wrong!
+            None,
+            true,
+            areas.clone(),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), MmsError::ChronoParse(_)));
+
+        // Invalid end date format
+        let result = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS".to_string(),
+            "TUM".to_string(),
+            180,
+            None,
+            Some("99.99.2024".to_string()), // Invalid date
+            true,
+            areas,
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), MmsError::ChronoParse(_)));
+    }
+
+    #[tokio::test]
+    async fn test_invalid_date_range_rejected() {
+        let db = setup_test_db().await.unwrap();
+
+        let areas = vec![];
+
+        // End date before start date
+        let result = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS".to_string(),
+            "TUM".to_string(),
+            180,
+            Some("30.09.2028".to_string()),
+            Some("01.10.2024".to_string()), // End before start!
+            true,
+            areas.clone(),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            MmsError::InvalidDateRange { .. }
+        ));
+
+        // Equal dates (start == end is invalid)
+        let result = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS".to_string(),
+            "TUM".to_string(),
+            180,
+            Some("01.10.2024".to_string()),
+            Some("01.10.2024".to_string()), // Same date!
+            true,
+            areas,
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            MmsError::InvalidDateRange { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_valid_german_date_formats_accepted() {
+        let db = setup_test_db().await.unwrap();
+
+        let areas = vec![];
+
+        // Without leading zeros
+        let result = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS1".to_string(),
+            "TUM".to_string(),
+            180,
+            Some("1.10.2024".to_string()),
+            Some("30.9.2028".to_string()),
+            true,
+            areas.clone(),
+        )
+        .await;
+
+        assert!(result.is_ok());
+
+        // With leading zeros
+        let result = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS2".to_string(),
+            "TUM".to_string(),
+            180,
+            Some("01.10.2024".to_string()),
+            Some("30.09.2028".to_string()),
+            true,
+            areas,
+        )
+        .await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_update_with_invalid_ects_rejected() {
+        let db = setup_test_db().await.unwrap();
+
+        // Create valid degree
+        let degree = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS".to_string(),
+            "TUM".to_string(),
+            180,
+            None,
+            None,
+            true,
+            vec![],
+        )
+        .await
+        .unwrap();
+
+        // Try to update with invalid ECTS
+        let result = update_degree(
+            &db,
+            degree.id,
+            None,
+            Some(50), // Invalid for Bachelor!
+            None,
+            None,
+            None,
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            MmsError::InvalidDegreeEcts { .. }
+        ));
+
+        // Verify degree wasn't updated
+        let unchanged = get_degree_by_id(&db, degree.id).await.unwrap();
+        assert_eq!(unchanged.total_ects_required, 180);
+    }
+
+    #[tokio::test]
+    async fn test_update_with_invalid_date_range_rejected() {
+        let db = setup_test_db().await.unwrap();
+
+        // Create degree with valid dates
+        let degree = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS".to_string(),
+            "TUM".to_string(),
+            180,
+            Some("01.10.2024".to_string()),
+            Some("30.09.2028".to_string()),
+            true,
+            vec![],
+        )
+        .await
+        .unwrap();
+
+        // Try to update end date to be before start date
+        let result = update_degree(
+            &db,
+            degree.id,
+            None,
+            None,
+            None,
+            Some("01.09.2024".to_string()), // Before existing start date!
+            None,
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            MmsError::InvalidDateRange { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_area_management() {
+        let db = setup_test_db().await.unwrap();
+
+        // Create degree with initial area
+        let degree = create_degree(
+            &db,
+            DegreeType::Bachelor,
+            "CS".to_string(),
+            "TUM".to_string(),
+            180,
+            None,
+            None,
+            true,
+            vec![AreaDefinition {
+                category_name: "Core".to_string(),
+                required_ects: 90,
+                counts_towards_gpa: true,
+                display_order: 0,
+            }],
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(degree.areas.len(), 1);
+
+        // Add new area
+        let new_area = add_degree_area(&db, degree.id, "Electives".to_string(), 60, true)
+            .await
+            .unwrap();
+
+        assert_eq!(new_area.category_name, "Electives");
+        assert_eq!(new_area.required_ects, 60);
+
+        // Verify degree now has 2 areas
+        let updated_degree = get_degree_by_id(&db, degree.id).await.unwrap();
+        assert_eq!(updated_degree.areas.len(), 2);
+
+        // Update area
+        let area_id = updated_degree.areas[0].id;
+        let modified_area =
+            update_degree_area(&db, area_id, Some("Core CS".to_string()), Some(100), None)
+                .await
+                .unwrap();
+
+        assert_eq!(modified_area.category_name, "Core CS");
+        assert_eq!(modified_area.required_ects, 100);
+
+        // Delete area
+        delete_degree_area(&db, area_id).await.unwrap();
+
+        let final_degree = get_degree_by_id(&db, degree.id).await.unwrap();
+        assert_eq!(final_degree.areas.len(), 1);
+        assert_eq!(final_degree.areas[0].category_name, "Electives");
+    }
 }

@@ -10,3 +10,4 @@ pub mod service;
 pub mod symlink;
 pub mod sync;
 pub mod toml;
+pub mod utils;

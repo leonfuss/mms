@@ -71,6 +71,15 @@ pub enum MmsError {
     #[error("Holiday not found: {0}")]
     HolidayNotFound(i64),
 
+    #[error("Degree not found: {0}")]
+    DegreeNotFound(i64),
+
+    #[error("Degree area not found: {0}")]
+    DegreeAreaNotFound(i64),
+
+    #[error("Invalid degree type: {0}")]
+    InvalidDegreeType(String),
+
     #[error("No active course at this time")]
     NoActiveCourse,
 
@@ -133,6 +142,16 @@ pub enum MmsError {
         path: std::path::PathBuf,
         reason: String,
     },
+
+    #[error("Invalid degree ECTS: {ects} for {degree_type} (expected {expected_range})")]
+    InvalidDegreeEcts {
+        ects: i32,
+        degree_type: String,
+        expected_range: String,
+    },
+
+    #[error("Invalid area ECTS: {0} (must be positive)")]
+    InvalidAreaEcts(i32),
 
     #[error("{0}")]
     Other(String),

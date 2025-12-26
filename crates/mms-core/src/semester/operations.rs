@@ -2,52 +2,13 @@ use crate::config::Config;
 use crate::db::entities::semesters;
 use crate::error::{MmsError, Result};
 use crate::toml::{SemesterToml, SemesterType};
-use chrono::NaiveDate;
+use crate::utils::date_validation::{validate_date_format, validate_date_range};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
     TransactionTrait,
 };
 use std::path::PathBuf;
-
-/// Validate German date format (DD.MM.YYYY)
-///
-/// Accepts flexible formats:
-/// - 12.02.2004 (with leading zeros)
-/// - 7.8.2003 (without leading zeros)
-/// - 01.12.2024 (mixed)
-fn validate_date_format(date: &str) -> Result<()> {
-    parse_german_date(date)?;
-    Ok(())
-}
-
-/// Parse German date format (DD.MM.YYYY) to NaiveDate
-///
-/// Uses chrono's padding-agnostic parsing, which accepts both:
-/// - Padded: "07.08.2003"
-/// - Non-padded: "7.8.2003"
-fn parse_german_date(date: &str) -> Result<NaiveDate> {
-    NaiveDate::parse_from_str(date, "%d.%m.%Y").map_err(MmsError::ChronoParse)
-}
-
-/// Validate start_date < end_date
-fn validate_date_range(start: &Option<String>, end: &Option<String>) -> Result<()> {
-    match (start, end) {
-        (Some(s), Some(e)) => {
-            let start_date = parse_german_date(s)?;
-            let end_date = parse_german_date(e)?;
-
-            if start_date >= end_date {
-                return Err(MmsError::InvalidDateRange {
-                    start: s.clone(),
-                    end: e.clone(),
-                });
-            }
-            Ok(())
-        }
-        _ => Ok(()),
-    }
-}
 
 /// Validate semester number is positive
 fn validate_semester_number(number: i64) -> Result<()> {

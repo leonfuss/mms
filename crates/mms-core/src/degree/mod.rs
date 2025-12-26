@@ -8,4 +8,4 @@ pub use operations::{
     delete_degree_area, get_degree_by_id, get_degree_progress, get_unmapped_courses, list_degrees,
     map_course_to_area, unmap_course_from_area, update_degree, update_degree_area,
 };
-pub use types::DegreeType;
+pub use types::{AreaEcts, DegreeEcts, DegreeType};
